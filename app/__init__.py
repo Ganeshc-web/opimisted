@@ -50,12 +50,16 @@ def create_app(env="development"):
     from app.api.v1.assessment.routes import ns as assessment_ns
     from app.api.v1.calculate.routes import ns as calculate_ns
     from app.api.v1.report.routes import ns as report_ns
+    from app.api.v1.education.routes import ns as education_ns
+    from app.api.v1.tour.routes import ns as tour_ns
 
     api.add_namespace(health_ns)
     api.add_namespace(rates_ns)
     api.add_namespace(assessment_ns)
     api.add_namespace(calculate_ns)
     api.add_namespace(report_ns)
+    api.add_namespace(education_ns)
+    api.add_namespace(tour_ns)
 
     importlib.import_module("app.models")
 

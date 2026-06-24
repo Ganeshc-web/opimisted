@@ -1,0 +1,57 @@
+Level,Course Category,Country,Country Famous For,Approx Current Cost (INR),Suggested Duration,Category,Living Cost Included,Lifestyle Level,Future Inflation Rate (%)
+Graduation,Engineering,India,Affordable Technical Education,1500000,4 Years,Moderate,Yes,Professional Growth,8
+Graduation,Engineering,USA,Innovation & Technology,12000000,4 Years,Premium,Yes,Global Exposure,8
+Graduation,Engineering,Germany,Mechanical Engineering Excellence,7000000,4 Years,Moderate,Yes,Research Driven,8
+Graduation,Engineering,Canada,Affordable International Education,8000000,4 Years,Premium,Yes,Balanced Lifestyle,8
+Graduation,Engineering,Australia,International Student Experience,9500000,4 Years,Premium,Yes,High Lifestyle,8
+Graduation,Medical,India,Competitive Medical Education,6000000,5 Years,Premium,Yes,Prestigious Career,9
+Graduation,Medical,USA,Advanced Medical Research,25000000,5-6 Years,Ultra Premium,Yes,Elite Medical Career,9
+Graduation,Medical,UK,Historic Medical Institutions,18000000,5 Years,Premium,Yes,Global Healthcare Career,9
+Graduation,Design,Italy,Luxury Fashion & Design,7500000,3 Years,Premium,Yes,Luxury Design Exposure,8
+Graduation,Fashion Designing,France,Global Fashion Industry,8500000,3 Years,Premium,Yes,Creative Luxury Lifestyle,8
+Graduation,Hospitality,Switzerland,Luxury Hospitality Education,11000000,3-4 Years,Ultra Premium,Yes,Luxury Global Career,8
+Graduation,Commerce,India,Affordable Commerce Education,1200000,3 Years,Budget,Yes,Stable Career,7
+Graduation,Law,UK,International Legal Studies,8500000,3 Years,Premium,Yes,Global Legal Career,8
+Graduation,Architecture,Netherlands,Modern Urban Design,7200000,4 Years,Premium,Yes,Creative International Career,8
+Graduation,Animation,Japan,Anime & Creative Industry,6800000,3 Years,Moderate,Yes,Creative Tech Lifestyle,8
+Graduation,Gaming,South Korea,Gaming & Esports Industry,7500000,3 Years,Premium,Yes,Modern Digital Lifestyle,8
+Graduation,Aviation,New Zealand,Pilot Training,9500000,3-4 Years,Premium,Yes,Adventure Career,8
+Graduation,Psychology,Canada,Research & Student Friendly,7000000,4 Years,Moderate,Yes,Balanced Global Career,8
+Graduation,Biotechnology,Singapore,Advanced Research Ecosystem,8500000,4 Years,Premium,Yes,Future Science Career,8
+Graduation,Fine Arts,Spain,Art & Cultural Education,6500000,3 Years,Moderate,Yes,Creative Lifestyle,8
+Graduation,MBBS,India,Affordable Medical Education,7000000,5.5 Years,Premium,Yes,Doctor Career Path,9
+Graduation,MBBS,Russia,Affordable International MBBS,4500000,6 Years,Moderate,Yes,International Medical Exposure,9
+Graduation,MBBS,Georgia,Popular MBBS Destination,5000000,6 Years,Moderate,Yes,Global Medical Career,9
+Graduation,MBBS,Kazakhstan,Budget Medical Education,4000000,5-6 Years,Budget,Yes,Affordable Doctor Career,9
+Graduation,MBBS,Philippines,English Medium MBBS,5500000,5-6 Years,Moderate,Yes,International Medical Lifestyle,9
+Graduation,MBBS,Ukraine,European Medical Education,6000000,6 Years,Moderate,Yes,European Medical Exposure,9
+Graduation,MBBS,UK,Historic Medical Institutions,18000000,5 Years,Premium,Yes,Elite Doctor Career,9
+Graduation,MBBS,USA,Advanced Medical Research,25000000,5-6 Years,Ultra Premium,Yes,Global Medical Excellence,9
+Graduation,MBBS,Australia,Advanced Healthcare Training,17000000,5 Years,Premium,Yes,Premium Medical Career,9
+Graduation,Dentistry,India,Affordable Dental Education,3500000,5 Years,Moderate,Yes,Dental Healthcare Career,8
+Graduation,Dentistry,Canada,Advanced Dental Research,12000000,4-5 Years,Premium,Yes,Global Dental Career,8
+Post Graduation,MBA,India,Affordable Management Education,2500000,2 Years,Moderate,Yes,Leadership Growth,8
+Post Graduation,MBA,USA,Top Business Schools,18000000,2 Years,Premium,Yes,Global Corporate Exposure,8
+Post Graduation,MBA,UK,International Leadership Programs,12000000,1-2 Years,Premium,Yes,Executive Lifestyle,8
+Post Graduation,MBA,Singapore,Asian Financial Hub,9500000,1-2 Years,Premium,Yes,Corporate Lifestyle,8
+Post Graduation,MBA,Canada,Affordable Global MBA,9000000,2 Years,Premium,Yes,Balanced Global Career,8
+Post Graduation,Data Science,USA,AI & Big Data Industry,13000000,1-2 Years,Premium,Yes,Future Tech Career,8
+Post Graduation,AI & ML,Germany,Industrial Automation,7000000,2 Years,Moderate,Yes,Advanced Technology,8
+Post Graduation,Finance,UK,Global Finance Sector,11000000,1-2 Years,Premium,Yes,Investment Banking Lifestyle,8
+Post Graduation,Medicine,Australia,Advanced Healthcare Training,15000000,2-3 Years,Premium,Yes,Advanced Healthcare Career,9
+Post Graduation,Cyber Security,Canada,Digital Security Industry,8500000,1-2 Years,Moderate,Yes,Secure Tech Career,8
+Post Graduation,Business Analytics,Singapore,Corporate Analytics Ecosystem,8000000,1-2 Years,Moderate,Yes,Data Driven Career,8
+Post Graduation,Luxury Management,Switzerland,Luxury Brand Management,14000000,1-2 Years,Ultra Premium,Yes,Luxury Brand Career,8
+Post Graduation,Film Making,USA,Hollywood & Media Industry,12500000,2 Years,Premium,Yes,Creative Entertainment Lifestyle,8
+Post Graduation,Digital Marketing,Ireland,European Tech Hub,7000000,1 Year,Moderate,Yes,Modern Corporate Lifestyle,8
+Post Graduation,Blockchain,Dubai (UAE),Crypto & Fintech Innovation,9500000,1-2 Years,Premium,Yes,Future Finance Lifestyle,8
+Post Graduation,Sports Management,Australia,Sports Infrastructure,8500000,1-2 Years,Premium,Yes,Sports Business Career,8
+Post Graduation,Public Policy,France,Global Diplomacy & Policy,9000000,1-2 Years,Premium,Yes,Government Leadership Career,8
+Post Graduation,Renewable Energy,Denmark,Green Energy Innovation,8000000,2 Years,Moderate,Yes,Sustainable Future Career,8
+Post Graduation,Robotics,Japan,Robotics & Automation,10000000,2 Years,Premium,Yes,Advanced Technology Lifestyle,8
+Post Graduation,Entrepreneurship,Israel,Startup Ecosystem,8500000,1-2 Years,Moderate,Yes,Innovation Driven Career,8
+Post Graduation,MD/MS,India,Specialized Medical Education,5000000,3 Years,Premium,Yes,Specialist Doctor Career,9
+Post Graduation,MD/MS,USA,Advanced Medical Specialization,22000000,3-5 Years,Ultra Premium,Yes,Elite Healthcare Career,9
+Post Graduation,MD/MS,UK,Historic Healthcare Institutions,18000000,3-4 Years,Premium,Yes,Global Specialist Career,9
+Post Graduation,Healthcare Management,Singapore,Modern Healthcare Ecosystem,8500000,1-2 Years,Premium,Yes,Healthcare Leadership Career,8
+Post Graduation,Public Health,Canada,Healthcare Research,9000000,1-2 Years,Moderate,Yes,Global Health Career,8
