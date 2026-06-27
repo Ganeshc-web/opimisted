@@ -5,6 +5,14 @@ from app import db
 
 class EducationProgram(db.Model):
     __tablename__ = "education_programs"
+    __table_args__ = (
+        db.Index(
+            "ix_education_programs_level_course_country",
+            "level",
+            "course_category",
+            "country",
+        ),
+    )
 
     id = db.Column(db.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     level = db.Column(db.String(20), nullable=False)

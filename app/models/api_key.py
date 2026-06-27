@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app import db
 
@@ -12,5 +12,5 @@ class APIKey(db.Model):
     client_name = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(20), default="user")
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_used_at = db.Column(db.DateTime, nullable=True)

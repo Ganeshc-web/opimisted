@@ -1,6 +1,6 @@
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from docx import Document
 from docx.shared import Inches, Pt
@@ -93,7 +93,7 @@ def generate_report(assessment_id: str, calc: object,
     """
     os.makedirs(REPORTS_FOLDER, exist_ok=True)
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     file_name = f"report_{assessment_id[:8]}_{timestamp}"
     docx_path = os.path.join(REPORTS_FOLDER, f"{file_name}.docx")
     
@@ -112,7 +112,7 @@ def generate_report(assessment_id: str, calc: object,
         "mobile":                    comm.mobile or "",
         "email":                     comm.email or "",
         "residential_address":       comm.residential_address or "",
-        "report_date":               datetime.utcnow().strftime("%d %B %Y"),
+        "report_date":               datetime.now(timezone.utc).strftime("%d %B %Y"),
         "assessment_id":             str(assessment_id),
         # Calculations
         "client_corpus":             fmt_inr(calc.client_corpus or 0),

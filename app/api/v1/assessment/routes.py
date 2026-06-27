@@ -1,34 +1,149 @@
-from datetime import date, datetime
+import uuid
+from datetime import date, datetime, timezone
 
 from flask import request
-from flask_restx import Namespace, Resource
+from flask_restx import Namespace, Resource, fields
 from marshmallow import ValidationError
 
 from app import db
 from app.core.exceptions import APIError
 from app.core.formulas import current_year, goal_calc, monthly_effective_rate
+from app.core.swagger_models import error_model
 from app.core.validators import (
     CommunicationSchema,
     FamilySchema,
+    GoalSchema,
     GoalsListSchema,
     PersonalSchema,
 )
 from app.middleware.auth import require_api_key
 from app.models.assessment import AssessmentRecord
 from app.models.communication import CommunicationDetails
+from app.models.education_db import EducationProgram
 from app.models.family import Child, FamilyDetails
 from app.models.goals import Goal
 from app.models.personal import PersonalDetails
 from app.models.rate_config import RateConfig
+from app.models.tour_db import TourDestination
 
-ns = Namespace("assessment", description="Assessment flows", path="/assessment")
+ns = Namespace(
+    "assessment",
+    description=(
+        "Multi-step assessment intake for financial planning. Create an "
+        "assessment, submit communication, personal, family, and goal details, "
+        "then retrieve the full assembled assessment."
+    ),
+    path="/assessment",
+)
+
+success_envelope_model = ns.model("AssessmentSuccessEnvelope", {
+    "status": fields.String(required=True, description="Response status.", example="success"),
+    "data": fields.Raw(required=True, description="Endpoint-specific response payload.", example={"assessment_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479"}),
+    "timestamp": fields.String(required=True, description="UTC timestamp for the response.", example="2026-06-27T13:30:00+00:00"),
+})
+
+communication_input_model = ns.model("CommunicationInput", {
+    "mobile": fields.String(required=True, description="Primary mobile number, digits only.", example="9876543210"),
+    "email": fields.String(required=True, description="Primary email address.", example="client@example.com"),
+    "spouse_mobile": fields.String(required=False, description="Optional spouse mobile number.", example="9876543211"),
+    "spouse_email": fields.String(required=False, description="Optional spouse email address.", example="spouse@example.com"),
+    "residential_address": fields.String(required=False, description="Residential mailing address.", example="123 Main St, Mumbai"),
+    "consent": fields.Boolean(required=True, description="Whether the client consented to data processing.", example=True),
+})
+
+bulk_assessment_input_model = ns.model("BulkAssessmentInput", {
+    "assessments": fields.List(
+        fields.Nested(communication_input_model),
+        required=True,
+        description="Communication payloads to create as new assessments; maximum 100.",
+        example=[
+            {
+                "mobile": "9876543210",
+                "email": "client@example.com",
+                "spouse_mobile": "9876543211",
+                "spouse_email": "spouse@example.com",
+                "residential_address": "123 Main St, Mumbai",
+                "consent": True,
+            }
+        ],
+    ),
+})
+
+personal_input_model = ns.model("PersonalInput", {
+    "client_name": fields.String(required=True, description="Client full name.", example="Yogesh Taori"),
+    "client_occupation": fields.String(required=True, description="Client occupation.", example="Engineer"),
+    "client_designation": fields.String(required=True, description="Client designation.", example="Manager"),
+    "client_company": fields.String(required=True, description="Client employer/company.", example="Tech Corp"),
+    "client_dob": fields.String(required=True, description="Client date of birth in DD/MM/YYYY format.", example="01/01/1990"),
+    "client_retirement_age": fields.Integer(required=False, description="Client target retirement age.", example=60),
+    "spouse_name": fields.String(required=False, description="Spouse full name.", example="Spouse Name"),
+    "spouse_occupation": fields.String(required=False, description="Spouse occupation.", example="Teacher"),
+    "spouse_designation": fields.String(required=False, description="Spouse designation.", example="Senior Teacher"),
+    "spouse_company": fields.String(required=False, description="Spouse employer/company.", example="School"),
+    "spouse_dob": fields.String(required=False, description="Spouse date of birth in DD/MM/YYYY format.", example="01/01/1995"),
+    "spouse_retirement_age": fields.Integer(required=False, description="Spouse target retirement age.", example=55),
+})
+
+child_input_model = ns.model("ChildInput", {
+    "child_number": fields.Integer(required=True, description="Child sequence number.", example=1),
+    "full_name": fields.String(required=True, description="Child full name.", example="Child One"),
+    "occupation": fields.String(required=False, description="Child occupation or student status.", example="Student"),
+    "financially_dependent": fields.Boolean(required=False, description="Whether the child is financially dependent.", example=True),
+    "date_of_birth": fields.String(required=False, description="Child date of birth in DD/MM/YYYY format.", example="01/06/2010"),
+})
+
+family_input_model = ns.model("FamilyInput", {
+    "number_of_children": fields.Integer(required=True, description="Total number of children.", example=2),
+    "children": fields.List(
+        fields.Nested(child_input_model),
+        required=False,
+        description="Child detail rows; length must match number_of_children.",
+        example=[
+            {
+                "child_number": 1,
+                "full_name": "Child One",
+                "occupation": "Student",
+                "financially_dependent": True,
+                "date_of_birth": "01/06/2010",
+            }
+        ],
+    ),
+})
+
+goal_input_model = ns.model("GoalInput", {
+    "category": fields.String(required=True, description="Goal category.", example="child_goal"),
+    "goal_type": fields.String(required=True, description="Goal type valid for the category.", example="Graduation"),
+    "child_id": fields.String(required=False, description="Optional child UUID to associate with the goal.", example="f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+    "education_program_id": fields.String(required=False, description="Optional education program UUID to link and auto-fill cost metadata.", example="f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+    "tour_destination_id": fields.String(required=False, description="Optional tour destination UUID to link and auto-fill cost metadata.", example="f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+    "target_year": fields.Integer(required=True, description="Future target year for this goal.", example=2035),
+    "today_cost": fields.Float(required=False, description="Current cost of the goal in INR.", example=2500000),
+    "inflation_rate": fields.Float(required=False, description="Annual inflation assumption as a decimal.", example=0.08),
+})
+
+goals_input_model = ns.model("GoalsInput", {
+    "goals": fields.List(
+        fields.Nested(goal_input_model),
+        required=True,
+        description="Goal rows to save; maximum 50 for bulk endpoint.",
+        example=[
+            {
+                "category": "child_goal",
+                "goal_type": "Graduation",
+                "target_year": 2035,
+                "today_cost": 2500000,
+                "inflation_rate": 0.08,
+            }
+        ],
+    ),
+})
 
 
 def success_response(data):
     return {
         "status": "success",
         "data": data,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -45,7 +160,50 @@ def load_schema(schema, payload):
         )
 
 
+def load_bulk_schema_item(schema, payload, index):
+    try:
+        return schema.load(payload or {})
+    except ValidationError as err:
+        field = next(iter(err.messages), None)
+        raise APIError(
+            "INVALID_INPUT",
+            f"Item {index} failed validation: {err.messages}",
+            field=field,
+            http_status=400,
+        )
+
+
+def validate_bulk_size(items, max_items, label):
+    if not isinstance(items, list):
+        raise APIError(
+            "INVALID_INPUT",
+            f"{label} must be a list.",
+            field=label,
+            http_status=400,
+        )
+    if len(items) > max_items:
+        raise APIError(
+            "INVALID_INPUT",
+            f"Maximum {max_items} items per bulk request",
+            field=label,
+            http_status=400,
+        )
+
+
+def parse_uuid_param(value, field_name):
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError):
+        raise APIError(
+            "INVALID_INPUT",
+            f"{field_name} must be a valid UUID.",
+            field=field_name,
+            http_status=400,
+        )
+
+
 def get_assessment_or_404(assessment_id):
+    assessment_id = parse_uuid_param(assessment_id, "assessment_id")
     record = db.session.get(AssessmentRecord, assessment_id)
     if not record:
         raise APIError("NOT_FOUND", "Assessment not found.", http_status=404)
@@ -127,6 +285,13 @@ def serialize_goal(row):
         "assessment_id": str(row.assessment_id),
         "category": row.category,
         "goal_type": row.goal_type,
+        "child_id": str(row.child_id) if row.child_id else None,
+        "education_program_id": (
+            str(row.education_program_id) if row.education_program_id else None
+        ),
+        "tour_destination_id": (
+            str(row.tour_destination_id) if row.tour_destination_id else None
+        ),
         "target_year": row.target_year,
         "today_cost": row.today_cost,
         "inflation_rate": row.inflation_rate,
@@ -136,9 +301,131 @@ def serialize_goal(row):
     }
 
 
+def build_goal_objects(assessment_id, goals_data):
+    monthly_eff_pre = get_monthly_eff_pre()
+    goals = []
+
+    for goal_data in goals_data:
+        calc = goal_calc(
+            goal_data["target_year"],
+            goal_data["today_cost"],
+            goal_data.get("inflation_rate", 0.06),
+            monthly_eff_pre,
+        )
+        goals.append(
+            Goal(
+                assessment_id=assessment_id,
+                category=goal_data["category"],
+                goal_type=goal_data["goal_type"],
+                child_id=goal_data.get("child_id"),
+                education_program_id=goal_data.get("education_program_id"),
+                tour_destination_id=goal_data.get("tour_destination_id"),
+                target_year=goal_data["target_year"],
+                today_cost=goal_data["today_cost"],
+                inflation_rate=goal_data.get("inflation_rate", 0.06),
+                future_cost=calc["future_cost"],
+                monthly_sip=calc["monthly_inv"],
+            )
+        )
+
+    return goals
+
+
+def validate_goal_child_ids(assessment_id, goals_data):
+    for goal_data in goals_data:
+        child_id = goal_data.get("child_id")
+        if not child_id:
+            continue
+
+        child = db.session.get(Child, child_id)
+        if not child:
+            raise APIError(
+                "NOT_FOUND",
+                "child_id does not exist.",
+                field="child_id",
+                http_status=404,
+            )
+
+        family = db.session.get(FamilyDetails, child.family_id)
+        if not family or str(family.assessment_id) != str(assessment_id):
+            raise APIError(
+                "INVALID_INPUT",
+                "child_id does not belong to this assessment.",
+                field="child_id",
+                http_status=400,
+            )
+
+
+def apply_goal_reference_defaults(goals_data):
+    for goal_data in goals_data:
+        education_program_id = goal_data.get("education_program_id")
+        if education_program_id:
+            program = db.session.get(EducationProgram, education_program_id)
+            if not program:
+                raise APIError(
+                    "NOT_FOUND",
+                    "education_program_id does not exist.",
+                    field="education_program_id",
+                    http_status=404,
+                )
+            if not goal_data.get("today_cost"):
+                goal_data["today_cost"] = program.approx_cost_inr
+            if not goal_data.get("inflation_rate"):
+                goal_data["inflation_rate"] = program.inflation_rate
+
+        tour_destination_id = goal_data.get("tour_destination_id")
+        if tour_destination_id:
+            destination = db.session.get(TourDestination, tour_destination_id)
+            if not destination:
+                raise APIError(
+                    "NOT_FOUND",
+                    "tour_destination_id does not exist.",
+                    field="tour_destination_id",
+                    http_status=404,
+                )
+            if not goal_data.get("today_cost"):
+                goal_data["today_cost"] = destination.budget_inr
+
+        if not goal_data.get("today_cost"):
+            raise APIError(
+                "INVALID_INPUT",
+                "today_cost is required when no reference cost is available.",
+                field="today_cost",
+                http_status=400,
+            )
+        if not goal_data.get("inflation_rate"):
+            goal_data["inflation_rate"] = 0.06
+
+
+def save_goals_bulk(assessment_id, goals_data, replace_existing=True):
+    validate_bulk_size(goals_data, 50, "goals")
+    validated_goals = [
+        load_bulk_schema_item(GoalSchema(), item, index)
+        for index, item in enumerate(goals_data)
+    ]
+    validate_goal_child_ids(assessment_id, validated_goals)
+    apply_goal_reference_defaults(validated_goals)
+
+    if replace_existing:
+        Goal.query.filter_by(assessment_id=assessment_id).delete()
+
+    saved_goals = build_goal_objects(assessment_id, validated_goals)
+    db.session.add_all(saved_goals)
+    return saved_goals
+
+
 @ns.route("/")
 class AssessmentCreate(Resource):
     @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Creates a new empty assessment record and returns its UUID. "
+            "Use the returned assessment_id to submit flow1 through flow4."
+        ),
+    )
+    @ns.response(200, "Success", success_envelope_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
     def post(self):
         record = AssessmentRecord(status="in_progress")
         db.session.add(record)
@@ -146,11 +433,86 @@ class AssessmentCreate(Resource):
         return success_response({"assessment_id": str(record.id)})
 
 
-@ns.route("/<uuid:assessment_id>/flow1")
+@ns.route("/bulk")
+class AssessmentBulkCreate(Resource):
+    @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Creates up to 100 assessment records with flow1 communication "
+            "details in a single all-or-nothing transaction."
+        ),
+    )
+    @ns.expect(bulk_assessment_input_model, validate=True)
+    @ns.response(200, "Success", success_envelope_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    def post(self):
+        payload = request.get_json(silent=True) or {}
+        assessments = payload.get("assessments", [])
+        validate_bulk_size(assessments, 100, "assessments")
+
+        validated_assessments = [
+            load_bulk_schema_item(CommunicationSchema(), item, index)
+            for index, item in enumerate(assessments)
+        ]
+
+        records = []
+        communications = []
+        submitted_at = datetime.now(timezone.utc)
+
+        for data in validated_assessments:
+            record = AssessmentRecord(
+                id=uuid.uuid4(),
+                status="in_progress",
+                flow1_submitted_at=submitted_at,
+            )
+            records.append(record)
+            communications.append(
+                CommunicationDetails(
+                    assessment_id=record.id,
+                    mobile=data["mobile"],
+                    email=data["email"],
+                    spouse_mobile=data.get("spouse_mobile"),
+                    spouse_email=data.get("spouse_email"),
+                    residential_address=data.get("residential_address"),
+                    consent=data["consent"],
+                    submitted_at=submitted_at,
+                )
+            )
+
+        try:
+            db.session.add_all(records + communications)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return success_response(
+            {"assessment_ids": [str(record.id) for record in records]}
+        )
+
+
+@ns.route("/<string:assessment_id>/flow1")
 class AssessmentFlow1(Resource):
     @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Creates or updates communication details for an assessment. "
+            "Submitting this flow again updates the existing row rather than "
+            "creating a duplicate."
+        ),
+    )
+    @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
+    @ns.expect(communication_input_model, validate=True)
+    @ns.response(200, "Success", success_envelope_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    @ns.response(404, "Resource not found", error_model)
     def post(self, assessment_id):
         record = get_assessment_or_404(assessment_id)
+        assessment_id = record.id
         data = load_schema(CommunicationSchema(), request.get_json(silent=True))
 
         comm = CommunicationDetails.query.filter_by(
@@ -163,7 +525,7 @@ class AssessmentFlow1(Resource):
             comm.spouse_email = data.get("spouse_email")
             comm.residential_address = data.get("residential_address")
             comm.consent = data["consent"]
-            comm.submitted_at = datetime.utcnow()
+            comm.submitted_at = datetime.now(timezone.utc)
         else:
             comm = CommunicationDetails(
                 assessment_id=assessment_id,
@@ -176,16 +538,31 @@ class AssessmentFlow1(Resource):
             )
             db.session.add(comm)
 
-        record.flow1_submitted_at = datetime.utcnow()
+        record.flow1_submitted_at = datetime.now(timezone.utc)
         db.session.commit()
         return success_response(serialize_communication(comm))
 
 
-@ns.route("/<uuid:assessment_id>/flow2")
+@ns.route("/<string:assessment_id>/flow2")
 class AssessmentFlow2(Resource):
     @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Creates or updates personal and spouse details for an assessment. "
+            "Ages are derived from DOB and retirement ages must be greater "
+            "than current ages."
+        ),
+    )
+    @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
+    @ns.expect(personal_input_model, validate=True)
+    @ns.response(200, "Success", success_envelope_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    @ns.response(404, "Resource not found", error_model)
     def post(self, assessment_id):
         record = get_assessment_or_404(assessment_id)
+        assessment_id = record.id
         data = load_schema(PersonalSchema(), request.get_json(silent=True))
 
         client_age = age_from_dob(data["client_dob"])
@@ -209,7 +586,7 @@ class AssessmentFlow2(Resource):
             personal.spouse_age = spouse_age
             personal.client_retirement_age = data.get("client_retirement_age", 60)
             personal.spouse_retirement_age = data.get("spouse_retirement_age", 55)
-            personal.submitted_at = datetime.utcnow()
+            personal.submitted_at = datetime.now(timezone.utc)
         else:
             personal = PersonalDetails(
                 assessment_id=assessment_id,
@@ -230,23 +607,37 @@ class AssessmentFlow2(Resource):
             )
             db.session.add(personal)
 
-        record.flow2_submitted_at = datetime.utcnow()
+        record.flow2_submitted_at = datetime.now(timezone.utc)
         db.session.commit()
         return success_response(serialize_personal(personal))
 
 
-@ns.route("/<uuid:assessment_id>/flow3")
+@ns.route("/<string:assessment_id>/flow3")
 class AssessmentFlow3(Resource):
     @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Creates or replaces family details and child rows for an "
+            "assessment. Existing child rows are replaced when the flow is resubmitted."
+        ),
+    )
+    @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
+    @ns.expect(family_input_model, validate=True)
+    @ns.response(200, "Success", success_envelope_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    @ns.response(404, "Resource not found", error_model)
     def post(self, assessment_id):
         record = get_assessment_or_404(assessment_id)
+        assessment_id = record.id
         data = load_schema(FamilySchema(), request.get_json(silent=True))
 
         family = FamilyDetails.query.filter_by(assessment_id=assessment_id).first()
         if family:
             Child.query.filter_by(family_id=family.id).delete()
             family.number_of_children = data["number_of_children"]
-            family.submitted_at = datetime.utcnow()
+            family.submitted_at = datetime.now(timezone.utc)
         else:
             family = FamilyDetails(
                 assessment_id=assessment_id,
@@ -274,84 +665,129 @@ class AssessmentFlow3(Resource):
             db.session.add(child)
             children.append(child)
 
-        record.flow3_submitted_at = datetime.utcnow()
+        record.flow3_submitted_at = datetime.now(timezone.utc)
         db.session.commit()
         return success_response(serialize_family(family, children))
 
 
-@ns.route("/<uuid:assessment_id>/flow4")
+@ns.route("/<string:assessment_id>/flow4")
 class AssessmentFlow4(Resource):
     @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Creates or replaces financial goals for an assessment. This "
+            "uses the same bulk goal insert path as /goals/bulk so validation "
+            "and calculations remain consistent."
+        ),
+    )
+    @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
+    @ns.expect(goals_input_model, validate=True)
+    @ns.response(200, "Success", success_envelope_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    @ns.response(404, "Resource not found", error_model)
     def post(self, assessment_id):
         record = get_assessment_or_404(assessment_id)
+        assessment_id = record.id
         data = load_schema(GoalsListSchema(), request.get_json(silent=True))
-        monthly_eff_pre = get_monthly_eff_pre()
+        saved_goals = save_goals_bulk(assessment_id, data["goals"])
 
-        Goal.query.filter_by(assessment_id=assessment_id).delete()
-
-        saved_goals = []
-        for goal_data in data["goals"]:
-            calc = goal_calc(
-                goal_data["target_year"],
-                goal_data["today_cost"],
-                goal_data.get("inflation_rate", 0.06),
-                monthly_eff_pre,
-            )
-            goal = Goal(
-                assessment_id=assessment_id,
-                category=goal_data["category"],
-                goal_type=goal_data["goal_type"],
-                target_year=goal_data["target_year"],
-                today_cost=goal_data["today_cost"],
-                inflation_rate=goal_data.get("inflation_rate", 0.06),
-                future_cost=calc["future_cost"],
-                monthly_sip=calc["monthly_inv"],
-            )
-            db.session.add(goal)
-            saved_goals.append(goal)
-
-        record.flow4_submitted_at = datetime.utcnow()
+        record.flow4_submitted_at = datetime.now(timezone.utc)
         db.session.commit()
         return success_response(
             {"goals": [serialize_goal(goal) for goal in saved_goals]}
         )
 
 
-@ns.route("/<uuid:assessment_id>")
+@ns.route("/<string:assessment_id>/goals/bulk")
+class AssessmentGoalsBulk(Resource):
+    @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Bulk creates up to 50 goals for an assessment in one transaction. "
+            "All goals are validated before insertion; any invalid item rolls "
+            "back the entire request."
+        ),
+    )
+    @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
+    @ns.expect(goals_input_model, validate=True)
+    @ns.response(200, "Success", success_envelope_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    @ns.response(404, "Resource not found", error_model)
+    def post(self, assessment_id):
+        record = get_assessment_or_404(assessment_id)
+        assessment_id = record.id
+        payload = request.get_json(silent=True) or {}
+        goals = payload.get("goals", [])
+        saved_goals = save_goals_bulk(assessment_id, goals)
+
+        record.flow4_submitted_at = datetime.now(timezone.utc)
+        db.session.commit()
+        return success_response(
+            {"goals": [serialize_goal(goal) for goal in saved_goals]}
+        )
+
+
+@ns.route("/<string:assessment_id>")
 class AssessmentDetail(Resource):
     @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Returns a full assessment snapshot including submitted flow "
+            "data. Related flow rows are eager-loaded to avoid N+1 queries."
+        ),
+    )
+    @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
+    @ns.response(200, "Success", success_envelope_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    @ns.response(404, "Resource not found", error_model)
     def get(self, assessment_id):
-        record = get_assessment_or_404(assessment_id)
+        assessment_id = parse_uuid_param(assessment_id, "assessment_id")
+        record = (
+            db.session.execute(
+                db.select(AssessmentRecord)
+                .options(
+                    db.joinedload(AssessmentRecord.communication),
+                    db.joinedload(AssessmentRecord.personal),
+                    db.joinedload(AssessmentRecord.family).joinedload(
+                        FamilyDetails.children
+                    ),
+                    db.joinedload(AssessmentRecord.goals),
+                )
+                .where(AssessmentRecord.id == assessment_id)
+            )
+            .unique()
+            .scalar_one_or_none()
+        )
+        if not record:
+            raise APIError("NOT_FOUND", "Assessment not found.", http_status=404)
 
         flow1 = None
         if record.flow1_submitted_at:
-            comm = CommunicationDetails.query.filter_by(
-                assessment_id=assessment_id
-            ).first()
+            comm = record.communication
             if comm:
                 flow1 = serialize_communication(comm)
 
         flow2 = None
         if record.flow2_submitted_at:
-            personal = PersonalDetails.query.filter_by(
-                assessment_id=assessment_id
-            ).first()
+            personal = record.personal
             if personal:
                 flow2 = serialize_personal(personal)
 
         flow3 = None
         if record.flow3_submitted_at:
-            family = FamilyDetails.query.filter_by(
-                assessment_id=assessment_id
-            ).first()
+            family = record.family
             if family:
-                children = Child.query.filter_by(family_id=family.id).all()
-                flow3 = serialize_family(family, children)
+                flow3 = serialize_family(family, family.children)
 
         flow4 = None
         if record.flow4_submitted_at:
-            goals = Goal.query.filter_by(assessment_id=assessment_id).all()
-            flow4 = {"goals": [serialize_goal(goal) for goal in goals]}
+            flow4 = {"goals": [serialize_goal(goal) for goal in record.goals]}
 
         return success_response(
             {

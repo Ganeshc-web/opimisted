@@ -1,11 +1,14 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app import db
 
 
 class PersonalDetails(db.Model):
     __tablename__ = "personal_details"
+    __table_args__ = (
+        db.Index("ix_personal_details_assessment_id", "assessment_id"),
+    )
 
     id = db.Column(db.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     assessment_id = db.Column(
@@ -25,4 +28,4 @@ class PersonalDetails(db.Model):
     spouse_age = db.Column(db.Integer, nullable=True)
     client_retirement_age = db.Column(db.Integer, default=60, nullable=False)
     spouse_retirement_age = db.Column(db.Integer, default=55, nullable=False)
-    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    submitted_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

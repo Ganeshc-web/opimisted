@@ -4,12 +4,16 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_restx import Api
+from flask_caching import Cache
+from werkzeug.exceptions import BadRequest
 
 from app.config import config_map
 from app.core.exceptions import APIError
+from app.core.swagger_models import init_swagger_models
 
 db = SQLAlchemy()
 migrate = Migrate()
+cache = Cache()
 
 
 def create_app(env="development"):
@@ -18,6 +22,7 @@ def create_app(env="development"):
 
     db.init_app(app)
     migrate.init_app(app, db)
+    cache.init_app(app)
 
     from app.middleware.logger import init_logger
     init_logger(app)
@@ -37,13 +42,74 @@ def create_app(env="development"):
     api = Api(
         app,
         version="1.0.0",
-        title="Financial Planning API",
-        description="Retirement planning calculation API",
+        title="Wealth Wisdom — Financial Planning API",
+        description=(
+            "Retirement planning calculation API covering corpus "
+            "projection, EPF accumulation, insurance needs, goal "
+            "planning, and education/tour cost lookups.\n\n"
+            "All monetary fields return three forms: `display` "
+            "(rounded to 2dp), `raw` (full precision for chaining), "
+            "and `inr` (human-readable Cr/L format).\n\n"
+            "Authentication: pass your key in the `X-API-Key` header. "
+            "User-role keys access calculation endpoints; admin-role "
+            "keys can additionally update rates."
+        ),
         doc="/api/docs",
         prefix="/api/v1",
         authorizations={"apikey": {"type": "apiKey", "in": "header", "name": "X-API-Key"}},
         security="apikey"
     )
+    init_swagger_models(api)
+
+    @api.errorhandler(APIError)
+    def handle_restx_api_error(error):
+        import uuid
+        return {
+            "status": "error",
+            "code": error.code,
+            "message": error.message,
+            "field": error.field,
+            "request_id": str(uuid.uuid4())
+        }, error.http_status
+
+    @api.errorhandler(BadRequest)
+    def handle_restx_bad_request(error):
+        import uuid
+
+        errors = getattr(error, "data", {}).get("errors", {})
+        field = next(iter(errors), None) if isinstance(errors, dict) else None
+        message = str(errors) if errors else getattr(error, "description", str(error))
+        return {
+            "status": "error",
+            "code": "INVALID_INPUT",
+            "message": message,
+            "field": field,
+            "request_id": str(uuid.uuid4())
+        }, 400
+
+    @app.after_request
+    def normalize_restx_validation_errors(response):
+        if response.status_code != 400 or not response.is_json:
+            return response
+
+        payload = response.get_json(silent=True) or {}
+        if "status" in payload or "errors" not in payload:
+            return response
+
+        import uuid
+        from flask import jsonify
+
+        errors = payload.get("errors") or {}
+        field = next(iter(errors), None) if isinstance(errors, dict) else None
+        normalized = jsonify({
+            "status": "error",
+            "code": "INVALID_INPUT",
+            "message": str(errors) if errors else payload.get("message", "Invalid input."),
+            "field": field,
+            "request_id": str(uuid.uuid4())
+        })
+        normalized.status_code = 400
+        return normalized
 
     from app.api.v1.health.routes import ns as health_ns
     from app.api.v1.rates.routes import ns as rates_ns

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app import db
 
@@ -13,7 +13,11 @@ class AssessmentRecord(db.Model):
     flow2_submitted_at = db.Column(db.DateTime, nullable=True)
     flow3_submitted_at = db.Column(db.DateTime, nullable=True)
     flow4_submitted_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
+    communication = db.relationship("CommunicationDetails", uselist=False)
+    personal = db.relationship("PersonalDetails", uselist=False)
+    family = db.relationship("FamilyDetails", uselist=False)
+    goals = db.relationship("Goal")

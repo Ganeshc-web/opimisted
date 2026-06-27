@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app import db
 
@@ -13,7 +13,7 @@ class RateConfig(db.Model):
     inflation_pre = db.Column(db.Float, default=0.06)
     roi_pre = db.Column(db.Float, default=0.12)
     updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
     updated_by = db.Column(db.String(100), nullable=True)
 
@@ -25,5 +25,5 @@ class RateHistory(db.Model):
     field_name = db.Column(db.String(50), nullable=False)
     old_value = db.Column(db.Float, nullable=False)
     new_value = db.Column(db.Float, nullable=False)
-    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    changed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     changed_by = db.Column(db.String(100), nullable=False)

@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timezone
+import uuid
 
 from flask import request
-from flask_restx import Namespace, Resource
+from flask_restx import Namespace, Resource, fields
 
 from app import db
 from app.core.exceptions import APIError
@@ -14,6 +15,7 @@ from app.core.formulas import (
     monthly_effective_rate,
     real_rate,
 )
+from app.core.swagger_models import error_model
 from app.middleware.auth import require_api_key
 from app.models.assessment import AssessmentRecord
 from app.models.calculation import CalculationOutput
@@ -21,7 +23,31 @@ from app.models.goals import Goal
 from app.models.personal import PersonalDetails
 from app.models.rate_config import RateConfig
 
-ns = Namespace("calculate", description="Run calculations", path="/calculate")
+ns = Namespace(
+    "calculate",
+    description=(
+        "Runs retirement, EPF, goal, and insurance calculations for a "
+        "completed assessment. Retirement ages are read from saved "
+        "PersonalDetails."
+    ),
+    path="/calculate",
+)
+
+calculate_input_model = ns.model("CalculateInput", {
+    "client_epf_annual": fields.Float(required=False, description="Client annual EPF contribution.", example=33600),
+    "client_epf_accum": fields.Float(required=False, description="Client existing EPF balance.", example=1039997),
+    "client_annual_ret_reqd": fields.Float(required=False, description="Client annual retirement expense requirement.", example=1500000),
+    "spouse_epf_annual": fields.Float(required=False, description="Spouse annual EPF contribution.", example=7200),
+    "spouse_epf_accum": fields.Float(required=False, description="Spouse existing EPF balance.", example=0),
+    "spouse_annual_ret_reqd": fields.Float(required=False, description="Spouse annual retirement expense requirement.", example=1000000),
+    "household_monthly": fields.Float(required=False, description="Current monthly household expense for insurance need.", example=30000),
+})
+
+calculate_response_model = ns.model("CalculateResponse", {
+    "status": fields.String(required=True, description="Response status.", example="success"),
+    "data": fields.Raw(required=True, description="Full calculation payload including corpus, goals, and insurance outputs."),
+    "timestamp": fields.String(required=True, description="UTC timestamp for the response.", example="2026-06-27T13:30:00+00:00"),
+})
 
 REQUEST_DEFAULTS = {
     "client_epf_annual": 33600,
@@ -38,8 +64,20 @@ def success_response(data):
     return {
         "status": "success",
         "data": data,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def parse_uuid_param(value, field_name):
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError):
+        raise APIError(
+            "INVALID_INPUT",
+            f"{field_name} must be a valid UUID.",
+            field=field_name,
+            http_status=400,
+        )
 
 
 def get_rates():
@@ -62,6 +100,24 @@ def get_rates():
 def get_body():
     payload = request.get_json(silent=True) or {}
     return {key: payload.get(key, default) for key, default in REQUEST_DEFAULTS.items()}
+
+
+def validate_non_negative_monetary_fields(data):
+    for field_name in (
+        "household_monthly",
+        "client_epf_annual",
+        "client_epf_accum",
+        "spouse_epf_annual",
+        "spouse_epf_accum",
+    ):
+        value = data.get(field_name)
+        if value is not None and value < 0:
+            raise APIError(
+                "INVALID_INPUT",
+                f"{field_name} cannot be negative.",
+                field=field_name,
+                http_status=400,
+            )
 
 
 def empty_corpus_calc():
@@ -144,10 +200,26 @@ def fmt_insurance_row(row):
     }
 
 
-@ns.route("/<uuid:assessment_id>")
+@ns.route("/<string:assessment_id>")
 class CalculateAssessment(Resource):
     @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Runs the full financial planning calculation for an assessment. "
+            "Requires saved PersonalDetails; optional body fields override "
+            "calculation defaults for EPF, retirement expense, and household expense."
+        ),
+    )
+    @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
+    @ns.expect(calculate_input_model, validate=True)
+    @ns.response(200, "Success", calculate_response_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    @ns.response(404, "Resource not found", error_model)
+    @ns.response(422, "Calculation error", error_model)
     def post(self, assessment_id):
+        assessment_id = parse_uuid_param(assessment_id, "assessment_id")
         assessment = db.session.get(AssessmentRecord, assessment_id)
         if not assessment:
             raise APIError("NOT_FOUND", "Assessment not found.", http_status=404)
@@ -163,6 +235,7 @@ class CalculateAssessment(Resource):
             )
 
         body = get_body()
+        validate_non_negative_monetary_fields(body)
         rates = get_rates()
         rr = real_rate(rates["roi_post"], rates["inflation_post"])
         monthly_eff_pre = monthly_effective_rate(rates["roi_pre"])
@@ -237,7 +310,7 @@ class CalculateAssessment(Resource):
             spouse_lump_sum=spouse_calc["lump_sum"],
             total_insurance_required=total_insurance,
             total_goals_monthly_sip=total_goals_monthly_sip,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )
         db.session.add(output)
         db.session.commit()
