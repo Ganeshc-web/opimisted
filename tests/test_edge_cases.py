@@ -293,7 +293,7 @@ def test_calculate_without_personal_details_returns_not_found(client, auth_heade
     assert_error_response(response, 404, "NOT_FOUND")
 
 
-def test_flow4_empty_goals_list_returns_invalid_input(client, auth_headers):
+def test_flow4_empty_goals_list_is_allowed(client, auth_headers):
     assessment_id = create_assessment(client, auth_headers)
 
     response = client.post(
@@ -302,7 +302,15 @@ def test_flow4_empty_goals_list_returns_invalid_input(client, auth_headers):
         headers=auth_headers,
     )
 
-    assert_error_response(response, 400, "INVALID_INPUT", "goals")
+    body = assert_success_response(response)
+    assert body["data"]["goals"] == []
+
+    detail = client.get(f"/api/v1/assessment/{assessment_id}", headers=auth_headers)
+    detail_body = assert_success_response(detail)
+    assert detail_body["data"]["flow4_submitted_at"] is not None
+    assert detail_body["data"]["flow4"] == {"goals": []}
+    assert "calculation" in detail_body["data"]
+    assert "reports" in detail_body["data"]
 
 
 @pytest.mark.parametrize(

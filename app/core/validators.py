@@ -161,12 +161,8 @@ class GoalSchema(Schema):
 
 
 class GoalsListSchema(Schema):
-    goals = fields.List(fields.Nested(GoalSchema), required=True)
-
-    @validates("goals")
-    def validate_goals_not_empty(self, value, **kwargs):
-        if len(value) == 0:
-            raise ValidationError("At least one goal is required.")
+    # Empty goals allowed — clients may skip Flow 4 / submit no goals.
+    goals = fields.List(fields.Nested(GoalSchema), load_default=list)
 
 
 class RateUpdateSchema(Schema):

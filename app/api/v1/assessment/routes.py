@@ -649,9 +649,9 @@ class AssessmentFlow4(Resource):
     @ns.doc(
         security="apikey",
         description=(
-            "Creates or replaces financial goals for an assessment. This "
-            "uses the same bulk goal insert path as /goals/bulk so validation "
-            "and calculations remain consistent."
+            "Creates or replaces financial goals for an assessment. "
+            "Empty goals list is allowed (skip goals). Uses the same bulk "
+            "goal insert path as /goals/bulk."
         ),
     )
     @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
