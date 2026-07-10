@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wealth Wisdom — Financial Planning Report</title>
+<style>
+
+  @page {
+    size: A4;
+    margin: 18mm 16mm 22mm 16mm;
+    @bottom-center {
+      content: "Wealth Wisdom  •  Page " counter(page) " of " counter(pages);
+      font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+      font-size: 8.5pt;
+      color: #94a3b8;
+      letter-spacing: 0.03em;
+    }
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+    color: #1e293b;
+    font-size: 10pt;
+    line-height: 1.5;
+    background: #ffffff;
+  }
+
+  /* ---------- Header ---------- */
+
+  .header {
+    background: linear-gradient(120deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%);
+    border-radius: 10px;
+    padding: 22px 26px;
+    color: #ffffff;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 22px;
+  }
+
+  .header::after {
+    content: "";
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+  }
+
+  .brand-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .brand-mark {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12pt;
+    font-weight: 700;
+  }
+
+  .brand-name {
+    font-size: 12.5pt;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .header-doc-tag {
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  .header-title {
+    font-size: 21pt;
+    font-weight: 700;
+    margin-top: 18px;
+    letter-spacing: -0.01em;
+  }
+
+  .header-meta {
+    margin-top: 10px;
+    display: flex;
+    gap: 26px;
+    font-size: 9pt;
+    color: rgba(255,255,255,0.88);
+  }
+
+  .header-meta span.label {
+    display: block;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.65);
+    margin-bottom: 1px;
+  }
+
+  /* ---------- Section titles ---------- */
+
+  .section {
+    margin-bottom: 18px;
+  }
+
+  .section-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .section-index {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: #eff4ff;
+    border: 1px solid #c7d9fb;
+    color: #1d4ed8;
+    font-size: 8.5pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .section-title {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #0f2b6b;
+    letter-spacing: -0.005em;
+  }
+
+  .section-sub {
+    font-size: 8pt;
+    color: #94a3b8;
+    margin-left: 4px;
+  }
+
+  /* ---------- Card ---------- */
+
+  .card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+
+  .card + .card {
+    margin-top: 12px;
+  }
+
+  /* ---------- Profile grid ---------- */
+
+  .profile-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px 20px;
+  }
+
+  .field {
+    border-left: 2px solid #dbe6fb;
+    padding-left: 9px;
+  }
+
+  .field .label {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #94a3b8;
+    margin-bottom: 2px;
+  }
+
+  .field .value {
+    font-size: 10pt;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .field.wide {
+    grid-column: span 3;
+  }
+
+  /* ---------- Person sub-header (client / spouse) ---------- */
+
+  .person-tag {
+    display: inline-block;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: #2563eb;
+    background: #eff4ff;
+    border: 1px solid #c7d9fb;
+    padding: 3px 9px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+  }
+
+  /* ---------- Retirement summary ---------- */
+
+  .retire-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .stat-box {
+    background: #f8fafc;
+    border: 1px solid #eef2f7;
+    border-radius: 8px;
+    padding: 10px 11px;
+  }
+
+  .stat-box .label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+    margin-bottom: 3px;
+  }
+
+  .stat-box .value {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  .corpus-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }
+
+  .corpus-box {
+    border-radius: 8px;
+    padding: 11px 12px;
+    border: 1px solid;
+  }
+
+  .corpus-box.required {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .corpus-box.available {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .corpus-box.gap {
+    background: #eff4ff;
+    border-color: #c7d9fb;
+  }
+
+  .corpus-box .label {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    margin-bottom: 4px;
+  }
+
+  .corpus-box .value {
+    font-size: 12.5pt;
+    font-weight: 700;
+    color: #0f2b6b;
+  }
+
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .action-box {
+    background: #1d4ed8;
+    border-radius: 8px;
+    padding: 11px 12px;
+    color: #ffffff;
+  }
+
+  .action-box .label {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.75);
+    margin-bottom: 4px;
+  }
+
+  .action-box .value {
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  /* ---------- Goals table ---------- */
+
+  table.goals {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+
+  table.goals thead th {
+    text-align: left;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    background: #f8fafc;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  table.goals thead th.num,
+  table.goals td.num {
+    text-align: right;
+  }
+
+  table.goals tbody td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+  }
+
+  table.goals tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .goals-total {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .goals-total .label {
+    font-size: 8.5pt;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .goals-total .value {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #1d4ed8;
+  }
+
+  /* ---------- Insurance ---------- */
+
+  .insurance-box {
+    background: linear-gradient(120deg, #1d4ed8 0%, #2563eb 100%);
+    border-radius: 10px;
+    padding: 18px 20px;
+    color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .insurance-box .label {
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 4px;
+  }
+
+  .insurance-box .value {
+    font-size: 19pt;
+    font-weight: 700;
+  }
+
+  .insurance-box .note {
+    font-size: 8pt;
+    color: rgba(255,255,255,0.75);
+    max-width: 210px;
+    text-align: right;
+    line-height: 1.4;
+  }
+
+  /* ---------- Assumptions ---------- */
+
+  .assumptions-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .assumption-box {
+    text-align: center;
+    background: #f8fafc;
+    border: 1px solid #eef2f7;
+    border-radius: 8px;
+    padding: 10px 8px;
+  }
+
+  .assumption-box .value {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #1d4ed8;
+  }
+
+  .assumption-box .label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+    margin-top: 3px;
+  }
+
+  .calculated-note {
+    text-align: center;
+    font-size: 7.5pt;
+    color: #94a3b8;
+    margin-top: 10px;
+  }
+
+  /* ---------- Footer disclaimer ---------- */
+
+  .disclaimer {
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 7.5pt;
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+
+  .disclaimer strong {
+    color: #64748b;
+  }
+
+</style>
+</head>
+<body>
+
+  <!-- ================= HEADER ================= -->
+  <div class="header">
+    <div class="brand-row">
+      <div class="brand">
+        <div class="brand-mark">W</div>
+        <div class="brand-name">Wealth Wisdom</div>
+      </div>
+      <div class="header-doc-tag">Financial Planning Report</div>
+    </div>
+    <div class="header-title">Financial Planning Report</div>
+    <div class="header-meta">
+      <div>
+        <span class="label">Prepared For</span>
+        {{ client_name }}
+      </div>
+      <div>
+        <span class="label">Report Date</span>
+        {{ report_date }}
+      </div>
+      <div>
+        <span class="label">Assessment ID</span>
+        {{ assessment_id }}
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CLIENT PROFILE ================= -->
+  <div class="section">
+    <div class="section-title-row">
+      <div class="section-index">1</div>
+      <div class="section-title">Client Profile</div>
+    </div>
+    <div class="card">
+      <div class="profile-grid">
+        <div class="field">
+          <div class="label">Full Name</div>
+          <div class="value">{{ client_name }}</div>
+        </div>
+        <div class="field">
+          <div class="label">Age</div>
+          <div class="value">{{ client_age }}</div>
+        </div>
+        <div class="field">
+          <div class="label">Date of Birth</div>
+          <div class="value">{{ client_dob }}</div>
+        </div>
+        <div class="field">
+          <div class="label">Occupation</div>
+          <div class="value">{{ client_occupation }}</div>
+        </div>
+        <div class="field">
+          <div class="label">Company</div>
+          <div class="value">{{ client_company }}</div>
+        </div>
+        <div class="field">
+          <div class="label">Mobile</div>
+          <div class="value">{{ mobile }}</div>
+        </div>
+        <div class="field">
+          <div class="label">Email</div>
+          <div class="value">{{ email }}</div>
+        </div>
+        <div class="field wide">
+          <div class="label">Residential Address</div>
+          <div class="value">{{ residential_address }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if has_spouse %}
+  <!-- ================= SPOUSE PROFILE ================= -->
+  <div class="section">
+    <div class="section-title-row">
+      <div class="section-index">2</div>
+      <div class="section-title">Spouse Profile</div>
+    </div>
+    <div class="card">
+      <div class="profile-grid">
+        <div class="field">
+          <div class="label">Full Name</div>
+          <div class="value">{{ spouse_name }}</div>
+        </div>
+        <div class="field">
+          <div class="label">Age</div>
+          <div class="value">{{ spouse_age }}</div>
+        </div>
+        <div class="field">
+          <div class="label">Date of Birth</div>
+          <div class="value">{{ spouse_dob }}</div>
+        </div>
+        <div class="field">
+          <div class="label">Occupation</div>
+          <div class="value">{{ spouse_occupation }}</div>
+        </div>
+        <div class="field wide">
+          <div class="label">Company</div>
+          <div class="value">{{ spouse_company }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ================= CLIENT RETIREMENT SUMMARY ================= -->
+  <div class="section">
+    <div class="section-title-row">
+      <div class="section-index">{{ "3" if has_spouse else "2" }}</div>
+      <div class="section-title">Retirement Summary</div>
+      <div class="section-sub">Client</div>
+    </div>
+    <div class="card">
+      <span class="person-tag">{{ client_name }}</span>
+
+      <div class="retire-grid">
+        <div class="stat-box">
+          <div class="label">Retirement Age</div>
+          <div class="value">{{ client_retirement_age }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Years to Retirement</div>
+          <div class="value">{{ client_years_to_retirement }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Monthly Expense Today</div>
+          <div class="value">{{ client_expense_today }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Monthly Expense at Retirement</div>
+          <div class="value">{{ client_expense_at_retirement }}</div>
+        </div>
+      </div>
+
+      <div class="corpus-row">
+        <div class="corpus-box required">
+          <div class="label">Corpus Required</div>
+          <div class="value">{{ client_corpus }}</div>
+        </div>
+        <div class="corpus-box available">
+          <div class="label">EPF / PF Corpus</div>
+          <div class="value">{{ client_pf_corpus }}</div>
+        </div>
+        <div class="corpus-box gap">
+          <div class="label">Net Corpus Gap</div>
+          <div class="value">{{ client_net_corpus }}</div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <div class="action-box">
+          <div class="label">Required Monthly SIP</div>
+          <div class="value">{{ client_monthly_sip }}</div>
+        </div>
+        <div class="action-box">
+          <div class="label">Or Lump Sum Today</div>
+          <div class="value">{{ client_lump_sum }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if has_spouse %}
+  <!-- ================= SPOUSE RETIREMENT SUMMARY ================= -->
+  <div class="section">
+    <div class="section-title-row">
+      <div class="section-index">4</div>
+      <div class="section-title">Retirement Summary</div>
+      <div class="section-sub">Spouse</div>
+    </div>
+    <div class="card">
+      <span class="person-tag">{{ spouse_name }}</span>
+
+      <div class="retire-grid">
+        <div class="stat-box">
+          <div class="label">Retirement Age</div>
+          <div class="value">{{ spouse_retirement_age }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Years to Retirement</div>
+          <div class="value">{{ spouse_years_to_retirement }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Monthly Expense Today</div>
+          <div class="value">{{ spouse_expense_today }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Monthly Expense at Retirement</div>
+          <div class="value">{{ spouse_expense_at_retirement }}</div>
+        </div>
+      </div>
+
+      <div class="corpus-row">
+        <div class="corpus-box required">
+          <div class="label">Corpus Required</div>
+          <div class="value">{{ spouse_corpus }}</div>
+        </div>
+        <div class="corpus-box available">
+          <div class="label">EPF / PF Corpus</div>
+          <div class="value">{{ spouse_pf_corpus }}</div>
+        </div>
+        <div class="corpus-box gap">
+          <div class="label">Net Corpus Gap</div>
+          <div class="value">{{ spouse_net_corpus }}</div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <div class="action-box">
+          <div class="label">Required Monthly SIP</div>
+          <div class="value">{{ spouse_monthly_sip }}</div>
+        </div>
+        <div class="action-box">
+          <div class="label">Or Lump Sum Today</div>
+          <div class="value">{{ spouse_lump_sum }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if has_goals %}
+  <!-- ================= FINANCIAL GOALS ================= -->
+  <div class="section">
+    <div class="section-title-row">
+      <div class="section-index">{{ "5" if has_spouse else "3" }}</div>
+      <div class="section-title">Financial Goals</div>
+    </div>
+    <div class="card">
+      <table class="goals">
+        <thead>
+          <tr>
+            <th>Goal</th>
+            <th class="num">Target Year</th>
+            <th class="num">Today's Cost</th>
+            <th class="num">Future Cost</th>
+            <th class="num">Monthly SIP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in goals %}
+          <tr>
+            <td>{{ g.goal_type }}</td>
+            <td class="num">{{ g.target_year }}</td>
+            <td class="num">{{ g.today_cost }}</td>
+            <td class="num">{{ g.future_cost }}</td>
+            <td class="num">{{ g.monthly_sip }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="goals-total">
+        <div class="label">Total Monthly SIP for Goals</div>
+        <div class="value">{{ total_goals_monthly_sip }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ================= INSURANCE ================= -->
+  <div class="section">
+    <div class="section-title-row">
+      <div class="section-index">{{ "6" if (has_spouse and has_goals) else ("5" if (has_spouse or has_goals) else "4") }}</div>
+      <div class="section-title">Insurance Requirement</div>
+    </div>
+    <div class="insurance-box">
+      <div>
+        <div class="label">Total Life Insurance Required</div>
+        <div class="value">{{ total_insurance_required }}</div>
+      </div>
+      <div class="note">Covers income replacement, outstanding liabilities and future family goals.</div>
+    </div>
+  </div>
+
+  <!-- ================= ASSUMPTIONS ================= -->
+  <div class="section">
+    <div class="section-title-row">
+      <div class="section-index">{{ "7" if (has_spouse and has_goals) else ("6" if (has_spouse or has_goals) else "5") }}</div>
+      <div class="section-title">Assumptions</div>
+    </div>
+    <div class="card">
+      <div class="assumptions-grid">
+        <div class="assumption-box">
+          <div class="value">{{ inflation_pre }}</div>
+          <div class="label">Inflation (Pre-Retirement)</div>
+        </div>
+        <div class="assumption-box">
+          <div class="value">{{ roi_pre }}</div>
+          <div class="label">Return on Investment (Pre)</div>
+        </div>
+        <div class="assumption-box">
+          <div class="value">{{ inflation_post }}</div>
+          <div class="label">Inflation (Post-Retirement)</div>
+        </div>
+        <div class="assumption-box">
+          <div class="value">{{ roi_post }}</div>
+          <div class="label">Return on Investment (Post)</div>
+        </div>
+      </div>
+      <div class="calculated-note">Calculated at {{ calculated_at }}</div>
+    </div>
+  </div>
+
+  <!-- ================= DISCLAIMER ================= -->
+  <div class="disclaimer">
+    <strong>Disclaimer:</strong> This report has been generated by Wealth Wisdom for informational and illustrative purposes only, based on the data and assumptions provided. It does not constitute financial, investment, tax or legal advice, and should not be relied upon as the sole basis for any financial decision. Actual returns, inflation and market conditions may vary from the assumptions used. Please consult a qualified financial advisor before making investment decisions.
+  </div>
+
+</body>
+</html>

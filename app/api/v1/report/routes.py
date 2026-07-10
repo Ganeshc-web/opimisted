@@ -15,7 +15,11 @@ from app.models.communication import CommunicationDetails
 from app.models.goals import Goal
 from app.models.report_log import ReportLog
 from app.middleware.auth import require_api_key
+from app.services.report_delivery import ensure_report_file
+from app.services.report_http import send_stored_report
 from app.services.report_service import PROJECT_ROOT, generate_report
+from app.services.s3_storage import is_storage_key, resolve_local_attachment_path
+from app.services.email_service import maybe_send_report_email, send_report_email
 from app.core.exceptions import APIError
 from app.core.swagger_models import error_model
 
@@ -97,23 +101,42 @@ def run_report_job(app, job_id, assessment_id):
             with REPORT_GENERATION_SEMAPHORE:
                 result = generate_report(str(assessment_id), calc, personal, comm, goals)
 
+            file_path = result.get("attach_path") or result["docx_path"]
+            file_name = result["attach_name"]
+            fmt = "pdf" if result.get("pdf_path") else "docx"
+            if is_storage_key(file_path):
+                fmt = "pdf" if file_name.lower().endswith(".pdf") else "docx"
+
             log = ReportLog(
                 assessment_id=assessment_id,
                 calculation_id=calc.id,
                 triggered_by="user",
-                file_name=result["file_name"],
-                file_path=result["pdf_path"],
-                format="pdf",
+                file_name=file_name,
+                file_path=file_path,
+                format=fmt,
                 generated_at=datetime.now(timezone.utc),
             )
             db.session.add(log)
             db.session.commit()
 
+            if comm.consent:
+                attachment_path = resolve_local_attachment_path(file_path, file_name)
+                try:
+                    maybe_send_report_email(
+                        personal, comm, attachment_path, file_name
+                    )
+                finally:
+                    if attachment_path != file_path and os.path.exists(attachment_path):
+                        try:
+                            os.remove(attachment_path)
+                        except OSError:
+                            pass
+
             return {
                 "status": "completed",
                 "job_id": job_id,
                 "report_id": str(log.id),
-                "file_name": result["file_name"],
+                "file_name": log.file_name,
                 "generated_at": log.generated_at.isoformat(),
             }
         except Exception as exc:
@@ -154,14 +177,116 @@ def submit_report_job(app, assessment_id):
     return job_id
 
 
+def generate_and_deliver_report(assessment_id):
+    """Generate report; email client when consent is true, else return file."""
+    assessment_id = parse_uuid_param(assessment_id, "assessment_id")
+
+    record = db.session.get(AssessmentRecord, assessment_id)
+    if not record:
+        raise APIError("NOT_FOUND", "Assessment not found.", http_status=404)
+
+    calc = CalculationOutput.query.filter_by(
+        assessment_id=assessment_id
+    ).order_by(CalculationOutput.calculated_at.desc()).first()
+    if not calc:
+        raise APIError(
+            "INVALID_INPUT",
+            "Run /calculate first before generating report.",
+            http_status=400,
+        )
+
+    personal = PersonalDetails.query.filter_by(
+        assessment_id=assessment_id
+    ).first()
+    comm = CommunicationDetails.query.filter_by(
+        assessment_id=assessment_id
+    ).first()
+    goals = Goal.query.filter_by(assessment_id=assessment_id).all()
+
+    if not personal or not comm:
+        raise APIError(
+            "INVALID_INPUT",
+            "Complete flows 1 and 2 before generating report.",
+            http_status=400,
+        )
+
+    with REPORT_GENERATION_SEMAPHORE:
+        result = generate_report(str(assessment_id), calc, personal, comm, goals)
+
+    send_path = result.get("attach_path") or result["docx_path"]
+    download_name = result.get("attach_name") or result["file_name"]
+    if result.get("pdf_path"):
+        fmt = "pdf"
+    elif download_name.lower().endswith(".docx"):
+        fmt = "docx"
+    elif download_name.lower().endswith(".html"):
+        fmt = "html"
+    else:
+        fmt = "pdf"
+    if is_storage_key(send_path):
+        fmt = "pdf" if download_name.lower().endswith(".pdf") else "docx"
+
+    log = ReportLog(
+        assessment_id=assessment_id,
+        calculation_id=calc.id,
+        triggered_by="user",
+        file_name=download_name,
+        file_path=send_path,
+        format=fmt,
+        generated_at=datetime.now(timezone.utc),
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    if comm.consent:
+        attachment_path = resolve_local_attachment_path(send_path, download_name)
+        try:
+            email_result = send_report_email(
+                personal, comm, attachment_path, download_name
+            )
+        except APIError as exc:
+            if exc.code != "EMAIL_QUOTA_EXCEEDED":
+                raise
+            email_result = None
+        finally:
+            if attachment_path != send_path and os.path.exists(attachment_path):
+                try:
+                    os.remove(attachment_path)
+                except OSError:
+                    pass
+        if email_result:
+            return report_success_response(
+                {
+                    "message": "Report sent to your email.",
+                    "delivery_mode": "email",
+                    "report_id": str(log.id),
+                    "format": log.format,
+                    "generated_at": log.generated_at.isoformat(),
+                    **email_result,
+                }
+            )
+
+    return send_stored_report(
+        {
+            "storage_key": send_path if is_storage_key(send_path) else None,
+            "file_path": send_path if not is_storage_key(send_path) else None,
+            "file_name": download_name,
+            "format": fmt,
+        }
+    )
+
+
 @ns.route("/<string:assessment_id>/generate")
 class ReportGenerate(Resource):
     @require_api_key
     @ns.doc(
         security="apikey",
         description=(
-            "Starts asynchronous PDF report generation for one assessment. "
-            "Returns immediately with a job_id; poll the status endpoint for completion."
+            "Generates the report. If the client gave email consent, the report is "
+            "sent directly to their email (Flow 1 email) and a JSON confirmation is "
+            "returned. After the daily email cap (499 by default), consenting clients "
+            "receive a file download instead. Without consent, the report file is "
+            "returned as a download."
         ),
     )
     @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
@@ -170,24 +295,29 @@ class ReportGenerate(Resource):
     @ns.response(401, "Missing or invalid API key", error_model)
     @ns.response(404, "Resource not found", error_model)
     def post(self, assessment_id):
-        """Generate PDF report for an assessment."""
-        assessment_id = parse_uuid_param(assessment_id, "assessment_id")
+        """Generate report and deliver via email or file download."""
+        return generate_and_deliver_report(assessment_id)
 
-        record = db.session.get(AssessmentRecord, assessment_id)
-        if not record:
-            raise APIError("NOT_FOUND", "Assessment not found.", http_status=404)
 
-        app = current_app._get_current_object()
-        job_id = submit_report_job(app, assessment_id)
-
-        return {
-            "status": "processing",
-            "data": {
-                "job_id": job_id,
-                "assessment_id": str(assessment_id),
-            },
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+@ns.route("/<string:assessment_id>/download")
+class ReportDownloadTrigger(Resource):
+    @require_api_key
+    @ns.doc(
+        security="apikey",
+        description=(
+            "Same as /generate: sends the report directly to the client's email "
+            "when consent is true (until the daily email cap is reached, then "
+            "returns a file download); otherwise returns the file download."
+        ),
+    )
+    @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path")
+    @ns.response(200, "Email sent or file download", report_response_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    @ns.response(404, "Resource not found", error_model)
+    def post(self, assessment_id):
+        """Download button: email report to client when consent is given."""
+        return generate_and_deliver_report(assessment_id)
 
 
 @ns.route("/bulk-generate")
@@ -311,8 +441,9 @@ class ReportDownload(Resource):
     @ns.doc(
         security="apikey",
         description=(
-            "Downloads a generated PDF report file and marks it as downloaded. "
-            "Use report_id returned by the status or history endpoint."
+            "Downloads a generated report. On first download, if the client gave "
+            "email consent and the daily email cap has not been reached, the report "
+            "is also sent to their email."
         ),
     )
     @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
@@ -332,22 +463,31 @@ class ReportDownload(Resource):
         if not log:
             raise APIError("NOT_FOUND", "Report not found.", http_status=404)
 
-        file_path = log.file_path
-        if not os.path.isabs(file_path):
-            file_path = os.path.join(str(PROJECT_ROOT), file_path)
+        delivery = ensure_report_file(log)
 
-        if not os.path.exists(file_path):
-            raise APIError("NOT_FOUND", "Report file missing on server.", http_status=404)
+        personal = PersonalDetails.query.filter_by(assessment_id=assessment_id).first()
+        comm = CommunicationDetails.query.filter_by(assessment_id=assessment_id).first()
+        first_download = log.downloaded_at is None
+
+        if first_download and personal and comm and comm.consent:
+            attachment_path = resolve_local_attachment_path(
+                log.file_path, delivery["file_name"]
+            )
+            try:
+                maybe_send_report_email(
+                    personal, comm, attachment_path, delivery["file_name"]
+                )
+            finally:
+                if attachment_path != log.file_path and os.path.exists(attachment_path):
+                    try:
+                        os.remove(attachment_path)
+                    except OSError:
+                        pass
 
         log.downloaded_at = datetime.now(timezone.utc)
         db.session.commit()
 
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=log.file_name,
-            mimetype="application/pdf"
-        )
+        return send_stored_report(delivery)
 
 
 @ns.route("/<string:assessment_id>/history")
@@ -387,3 +527,127 @@ class ReportHistory(Resource):
             ],
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
+
+
+send_email_input_model = ns.model("ReportSendEmailInput", {
+    "subject": fields.String(
+        required=False,
+        description="Email subject. If omitted, a default subject is used.",
+        example="Your Financial Planning Report",
+    ),
+    "body": fields.String(
+        required=False,
+        description="Email body (plain text). If omitted, a default body is used.",
+        example="Dear Client, Please find your report attached.",
+    ),
+})
+
+
+@ns.route("/<string:assessment_id>/send-email")
+class ReportSendEmail(Resource):
+    @require_api_key
+    @ns.doc(
+        security="apikey",
+        description="Generates (if needed) and emails the report as an attachment via SMTP.",
+    )
+    @ns.expect(send_email_input_model, validate=True)
+    @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path")
+    @ns.response(200, "Email sent", report_response_model)
+    @ns.response(400, "Invalid input", error_model)
+    @ns.response(401, "Missing or invalid API key", error_model)
+    @ns.response(403, "Consent missing", error_model)
+    @ns.response(404, "Resource not found", error_model)
+    def post(self, assessment_id):
+        assessment_id = parse_uuid_param(assessment_id, "assessment_id")
+
+        record = db.session.get(AssessmentRecord, assessment_id)
+        if not record:
+            raise APIError("NOT_FOUND", "Assessment not found.", http_status=404)
+
+        comm = CommunicationDetails.query.filter_by(assessment_id=assessment_id).first()
+        personal = PersonalDetails.query.filter_by(assessment_id=assessment_id).first()
+        if not personal or not comm:
+            raise APIError(
+                "INVALID_INPUT",
+                "Complete flows 1 and 2 before sending email.",
+                http_status=400,
+            )
+
+        if not comm.consent:
+            raise APIError(
+                "FORBIDDEN",
+                "Client consent is required to send the report via email.",
+                http_status=403,
+            )
+
+        calc = CalculationOutput.query.filter_by(
+            assessment_id=assessment_id
+        ).order_by(CalculationOutput.calculated_at.desc()).first()
+        if not calc:
+            raise APIError(
+                "INVALID_INPUT",
+                "Run /calculate first before generating report.",
+                http_status=400,
+            )
+
+        goals = Goal.query.filter_by(assessment_id=assessment_id).all()
+
+        payload = request.get_json(silent=True) or {}
+
+        with REPORT_GENERATION_SEMAPHORE:
+            result = generate_report(str(assessment_id), calc, personal, comm, goals)
+
+        attach_path = result.get("attach_path") or result.get("docx_path")
+        attach_name = result.get("attach_name") or result.get("file_name")
+
+        if not attach_path:
+            raise APIError(
+                "NOT_FOUND",
+                "Report file missing on server.",
+                http_status=404,
+            )
+        if not is_storage_key(attach_path) and not os.path.exists(attach_path):
+            raise APIError(
+                "NOT_FOUND",
+                "Report file missing on server.",
+                http_status=404,
+            )
+
+        attachment_path = resolve_local_attachment_path(attach_path, attach_name)
+        try:
+            email_result = send_report_email(
+                personal,
+                comm,
+                attachment_path,
+                attach_name,
+                subject=payload.get("subject"),
+                body=payload.get("body"),
+            )
+        finally:
+            if attachment_path != attach_path and os.path.exists(attachment_path):
+                try:
+                    os.remove(attachment_path)
+                except OSError:
+                    pass
+
+        fmt = "pdf" if attach_name.lower().endswith(".pdf") else "docx"
+        log = ReportLog(
+            assessment_id=assessment_id,
+            calculation_id=calc.id,
+            triggered_by="email",
+            file_name=attach_name,
+            file_path=attach_path,
+            format=fmt,
+            generated_at=datetime.now(timezone.utc),
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        return report_success_response(
+            {
+                **email_result,
+                "format": fmt,
+                "report_id": str(log.id),
+                "generated_at": log.generated_at.isoformat(),
+            }
+        )

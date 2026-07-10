@@ -222,6 +222,7 @@ def pf_table(
     current_epf_accum: float,
     epf_annual_total: float,
     years_to_retirement: int,
+    pf_growth: float = 0.05,
 ) -> tuple[list[dict], float]:
     """
     K10 = FV(H7, 12, -J10, -I10); J11 = J10*1.05; I11 = K10.
@@ -247,9 +248,94 @@ def pf_table(
         )
         yr += 1
         opening = closing
-        contribution = contribution * 1.05
+        contribution = contribution * (1 + pf_growth)
 
     return rows, rows[-1]["Closing (₹)"] if rows else current_epf_accum
+
+
+def nps_table(
+    current_nps_accum: float,
+    employer_nps_pm: float,
+    self_nps_pm: float,
+    years_to_retirement: int,
+    pf_growth: float = 0.05,
+) -> tuple[list[dict], float]:
+    """
+    NPS accumulation table — mirrors pf_table() logic exactly.
+    - nps_annual_total = (employer_nps_pm + self_nps_pm) * 12
+    - Same PF_MONTHLY_RATE, same FV formula, same 5% annual contribution growth.
+    - Returns (rows, final_corpus).
+    """
+    if years_to_retirement <= 0:
+        return [], current_nps_accum
+
+    nps_annual_total = (employer_nps_pm + self_nps_pm) * 12
+
+    if nps_annual_total <= 0 and current_nps_accum <= 0:
+        return [], 0.0
+
+    rows: list[dict] = []
+    opening = current_nps_accum
+    contribution = nps_annual_total
+    yr = current_year()
+
+    for _ in range(int(years_to_retirement)):
+        closing = excel_FV(PF_MONTHLY_RATE, 12, -contribution, -opening, END)
+        rows.append(
+            {
+                "Year": yr,
+                "Opening (₹)": opening,
+                "Contribution (₹)": contribution,
+                "Closing (₹)": closing,
+            }
+        )
+        yr += 1
+        opening = closing
+        contribution = contribution * (1 + pf_growth)
+
+    return rows, rows[-1]["Closing (₹)"] if rows else current_nps_accum
+
+
+def sa_table(
+    current_sa_accum: float,
+    sa_pm: float,
+    years_to_retirement: int,
+    pf_growth: float = 0.05,
+) -> tuple[list[dict], float]:
+    """
+    Superannuation accumulation table — mirrors pf_table() logic exactly.
+    - sa_annual_total = sa_pm * 12
+    - Same PF_MONTHLY_RATE, same FV formula, same 5% annual contribution growth.
+    - Returns (rows, final_corpus).
+    """
+    if years_to_retirement <= 0:
+        return [], current_sa_accum
+
+    sa_annual_total = sa_pm * 12
+
+    if sa_annual_total <= 0 and current_sa_accum <= 0:
+        return [], 0.0
+
+    rows: list[dict] = []
+    opening = current_sa_accum
+    contribution = sa_annual_total
+    yr = current_year()
+
+    for _ in range(int(years_to_retirement)):
+        closing = excel_FV(PF_MONTHLY_RATE, 12, -contribution, -opening, END)
+        rows.append(
+            {
+                "Year": yr,
+                "Opening (₹)": opening,
+                "Contribution (₹)": contribution,
+                "Closing (₹)": closing,
+            }
+        )
+        yr += 1
+        opening = closing
+        contribution = contribution * (1 + pf_growth)
+
+    return rows, rows[-1]["Closing (₹)"] if rows else current_sa_accum
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -268,6 +354,12 @@ def full_corpus_calc(
     inflation_pre: float = 0.06,
     roi_pre: float = 0.12,
     pmt_when: int = END,
+    employer_nps_pm: float = 0.0,
+    self_nps_pm: float = 0.0,
+    current_nps_accum: float = 0.0,
+    sa_pm: float = 0.0,
+    current_sa_accum: float = 0.0,
+    pf_growth: float = 0.05,
 ) -> dict:
     """
     E18 = FV(E20, E17, 0, E16); E19 = PV(E14, E15*12, E18, 0, 1)
@@ -284,8 +376,17 @@ def full_corpus_calc(
     exp_at_ret_pm = excel_FV(inflation_pre, yrs_to_ret, 0, exp_today_pm)
     corpus = excel_PV(rr_mly, ret_period * 12, exp_at_ret_pm, 0, BEGIN)
 
-    pf_rows, pf_fv = pf_table(current_epf_accum, epf_annual_total, yrs_to_ret)
-    net_corpus = corpus - pf_fv
+    pf_rows, pf_fv = pf_table(
+        current_epf_accum, epf_annual_total, yrs_to_ret, pf_growth=pf_growth
+    )
+    nps_rows, nps_fv = nps_table(
+        current_nps_accum, employer_nps_pm, self_nps_pm, yrs_to_ret, pf_growth=pf_growth
+    )
+    sa_rows, sa_fv = sa_table(
+        current_sa_accum, sa_pm, yrs_to_ret, pf_growth=pf_growth
+    )
+    total_existing_provision = pf_fv + nps_fv + sa_fv
+    net_corpus = corpus - total_existing_provision
 
     mly_eff_pre = monthly_effective_rate(roi_pre)
     monthly_inv = excel_PMT(mly_eff_pre, yrs_to_ret * 12, 0, net_corpus, pmt_when)
@@ -300,10 +401,15 @@ def full_corpus_calc(
         "expenses_at_retirement_pm": exp_at_ret_pm,
         "corpus": corpus,
         "pf_fv": pf_fv,
+        "nps_fv": nps_fv,
+        "sa_fv": sa_fv,
+        "total_existing_provision": total_existing_provision,
         "net_corpus": net_corpus,
         "monthly_investment": monthly_inv,
         "lump_sum": lump_sum,
         "pf_table": pf_rows,
+        "nps_table": nps_rows,
+        "sa_table": sa_rows,
     }
 
 

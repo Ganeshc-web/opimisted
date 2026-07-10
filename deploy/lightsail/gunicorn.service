@@ -1,0 +1,20 @@
+[Unit]
+Description=Wealth Wisdom Financial API (Gunicorn)
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/financial_api
+Environment="PATH=/var/www/financial_api/.venv/bin"
+EnvironmentFile=/var/www/financial_api/.env
+ExecStart=/var/www/financial_api/.venv/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:8000 \
+    --timeout 180 \
+    "run:app"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

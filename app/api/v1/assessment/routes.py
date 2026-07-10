@@ -17,6 +17,11 @@ from app.core.validators import (
     PersonalSchema,
 )
 from app.middleware.auth import require_api_key
+from app.services.assessment_detail_service import (
+    serialize_calculation_for_assessment,
+    serialize_reports_for_assessment,
+)
+from app.services.assessment_import_service import bulk_create_assessments_from_flow1
 from app.models.assessment import AssessmentRecord
 from app.models.communication import CommunicationDetails
 from app.models.education_db import EducationProgram
@@ -457,40 +462,8 @@ class AssessmentBulkCreate(Resource):
             for index, item in enumerate(assessments)
         ]
 
-        records = []
-        communications = []
-        submitted_at = datetime.now(timezone.utc)
-
-        for data in validated_assessments:
-            record = AssessmentRecord(
-                id=uuid.uuid4(),
-                status="in_progress",
-                flow1_submitted_at=submitted_at,
-            )
-            records.append(record)
-            communications.append(
-                CommunicationDetails(
-                    assessment_id=record.id,
-                    mobile=data["mobile"],
-                    email=data["email"],
-                    spouse_mobile=data.get("spouse_mobile"),
-                    spouse_email=data.get("spouse_email"),
-                    residential_address=data.get("residential_address"),
-                    consent=data["consent"],
-                    submitted_at=submitted_at,
-                )
-            )
-
-        try:
-            db.session.add_all(records + communications)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            raise
-
-        return success_response(
-            {"assessment_ids": [str(record.id) for record in records]}
-        )
+        assessment_ids = bulk_create_assessments_from_flow1(validated_assessments)
+        return success_response({"assessment_ids": assessment_ids})
 
 
 @ns.route("/<string:assessment_id>/flow1")
@@ -738,7 +711,9 @@ class AssessmentDetail(Resource):
         security="apikey",
         description=(
             "Returns a full assessment snapshot including submitted flow "
-            "data. Related flow rows are eager-loaded to avoid N+1 queries."
+            "data. When /calculate has been run, also includes calculation "
+            "summary (insurance, corpus, SIP, etc.) for admin View Details. "
+            "When reports exist, includes a reports list."
         ),
     )
     @ns.param("assessment_id", "Assessment UUID.", type=str, required=True, _in="path", example="f47ac10b-58cc-4372-a567-0e02b2c3d479")
@@ -789,6 +764,9 @@ class AssessmentDetail(Resource):
         if record.flow4_submitted_at:
             flow4 = {"goals": [serialize_goal(goal) for goal in record.goals]}
 
+        calculation = serialize_calculation_for_assessment(record.id)
+        reports = serialize_reports_for_assessment(record.id)
+
         return success_response(
             {
                 "assessment_id": str(record.id),
@@ -819,5 +797,7 @@ class AssessmentDetail(Resource):
                 "flow2": flow2,
                 "flow3": flow3,
                 "flow4": flow4,
+                "calculation": calculation,
+                "reports": reports,
             }
         )

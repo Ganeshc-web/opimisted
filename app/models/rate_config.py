@@ -12,6 +12,7 @@ class RateConfig(db.Model):
     roi_post = db.Column(db.Float, default=0.08)
     inflation_pre = db.Column(db.Float, default=0.06)
     roi_pre = db.Column(db.Float, default=0.12)
+    pf_growth = db.Column(db.Float, default=0.05)
     updated_at = db.Column(
         db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )

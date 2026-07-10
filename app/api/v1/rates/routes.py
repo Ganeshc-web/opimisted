@@ -41,6 +41,11 @@ rate_data_model = ns.model("RateData", {
         description="Pre-retirement annual return rate as a decimal.",
         example=0.12,
     ),
+    "pf_growth": fields.Float(
+        required=True,
+        description="Yearly growth in PF/NPS/SA contribution as a decimal (e.g. 0.05 = 5%).",
+        example=0.05,
+    ),
     "updated_at": fields.String(
         required=True,
         description="UTC timestamp when rates were last changed.",
@@ -91,6 +96,11 @@ rate_update_model = ns.model("RateUpdateInput", {
         required=False,
         description="New pre-retirement return rate as a decimal.",
         example=0.12,
+    ),
+    "pf_growth": fields.Float(
+        required=False,
+        description="Yearly PF contribution growth rate as a decimal.",
+        example=0.05,
     ),
 })
 
@@ -172,6 +182,7 @@ class Rates(Resource):
                 "roi_post":       config.roi_post,
                 "inflation_pre":  config.inflation_pre,
                 "roi_pre":        config.roi_pre,
+                "pf_growth":      config.pf_growth if config.pf_growth is not None else 0.05,
                 "updated_at":     config.updated_at.isoformat(),
                 "updated_by":     config.updated_by,
             },
@@ -224,7 +235,7 @@ class Rates(Resource):
         config.updated_at = datetime.now(timezone.utc)
         config.updated_by = str(g.api_key.client_name)
         db.session.commit()
-        cache.delete("rates:get")
+        cache.clear()
 
         return {
             "status": "updated",
@@ -233,6 +244,7 @@ class Rates(Resource):
                 "roi_post":       config.roi_post,
                 "inflation_pre":  config.inflation_pre,
                 "roi_pre":        config.roi_pre,
+                "pf_growth":      config.pf_growth if config.pf_growth is not None else 0.05,
                 "updated_at":     config.updated_at.isoformat(),
             },
             "timestamp": datetime.now(timezone.utc).isoformat()

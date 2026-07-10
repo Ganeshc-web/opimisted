@@ -1,10 +1,14 @@
 import importlib
+import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_restx import Api
 from flask_caching import Cache
+from flask_cors import CORS
 from werkzeug.exceptions import BadRequest
 
 from app.config import config_map
@@ -17,8 +21,15 @@ cache = Cache()
 
 
 def create_app(env="development"):
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
     app = Flask(__name__)
     app.config.from_object(config_map[env])
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": "*"}},
+        allow_headers=["Content-Type", "X-API-Key"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    )
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -118,6 +129,12 @@ def create_app(env="development"):
     from app.api.v1.report.routes import ns as report_ns
     from app.api.v1.education.routes import ns as education_ns
     from app.api.v1.tour.routes import ns as tour_ns
+    from app.api.v1.admin.routes import ns as admin_ns
+    from app.api.v1.contact.routes import ns as contact_ns
+    from app.api.v1.testimonials.routes import ns as testimonials_ns
+    from app.api.v1.nps.routes import ns as nps_ns
+    from app.api.v1.superannuation.routes import ns as sa_ns
+    from app.api.v1.retirement.routes import ns as retirement_ns
 
     api.add_namespace(health_ns)
     api.add_namespace(rates_ns)
@@ -126,6 +143,12 @@ def create_app(env="development"):
     api.add_namespace(report_ns)
     api.add_namespace(education_ns)
     api.add_namespace(tour_ns)
+    api.add_namespace(admin_ns)
+    api.add_namespace(contact_ns)
+    api.add_namespace(testimonials_ns)
+    api.add_namespace(nps_ns)
+    api.add_namespace(sa_ns)
+    api.add_namespace(retirement_ns)
 
     importlib.import_module("app.models")
 
@@ -139,18 +162,24 @@ def create_app(env="development"):
 
     @app.cli.command("seed-admin")
     def seed_admin():
-        import secrets, hashlib
-        from app.models.api_key import APIKey
-        raw_key = secrets.token_hex(32)
-        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-        admin = APIKey(
-            client_name="Admin",
-            key_hash=key_hash,
-            role="admin",
-            is_active=True
-        )
-        db.session.add(admin)
-        db.session.commit()
+        from app.services.api_key_service import create_api_key
+
+        _, raw_key = create_api_key(client_name="Admin", role="admin")
         print(f"\n ADMIN KEY (copy this — shown only once):\n {raw_key}\n")
+
+    @app.cli.command("seed-user")
+    def seed_user():
+        from app.services.api_key_service import create_api_key
+
+        _, raw_key = create_api_key(client_name="User", role="user")
+        print(f"\n USER KEY (copy this — shown only once):\n {raw_key}\n")
+
+    @app.cli.command("send-test-email")
+    def send_test_email_cmd():
+        """Send a test email using SMTP settings from config / .env."""
+        from app.services.email_service import send_test_email
+
+        recipient = send_test_email()
+        print(f"\nTest email sent to {recipient}\n")
 
     return app

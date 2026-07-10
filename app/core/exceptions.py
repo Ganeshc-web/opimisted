@@ -13,5 +13,6 @@ ERRORS = {
     "FORBIDDEN":         403,
     "NOT_FOUND":         404,
     "CALCULATION_ERROR": 422,
+    "CONFIG_ERROR":      500,
     "INTERNAL_ERROR":    500,
 }

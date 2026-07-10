@@ -1,0 +1,4 @@
+mobile,email,consent,spouse_mobile,spouse_email,residential_address
+9876543210,test.client1@wealthswisdom.com,true,9876543211,spouse1@wealthswisdom.com,"Mumbai, Maharashtra"
+9123456780,test.client2@wealthswisdom.com,false,,,"Pune, Maharashtra"
+9988776655,test.client3@wealthswisdom.com,true,,,"Bangalore, Karnataka"

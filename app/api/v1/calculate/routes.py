@@ -41,6 +41,16 @@ calculate_input_model = ns.model("CalculateInput", {
     "spouse_epf_accum": fields.Float(required=False, description="Spouse existing EPF balance.", example=0),
     "spouse_annual_ret_reqd": fields.Float(required=False, description="Spouse annual retirement expense requirement.", example=1000000),
     "household_monthly": fields.Float(required=False, description="Current monthly household expense for insurance need.", example=30000),
+    "employer_nps_pm": fields.Float(required=False, description="Employer NPS per month (₹).", example=0),
+    "self_nps_pm": fields.Float(required=False, description="Self NPS per month (₹).", example=0),
+    "current_nps_accum": fields.Float(required=False, description="Current NPS balance (₹).", example=0),
+    "sa_pm": fields.Float(required=False, description="Monthly SA contribution (₹).", example=0),
+    "current_sa_accum": fields.Float(required=False, description="Current SA balance (₹).", example=0),
+    "spouse_employer_nps_pm": fields.Float(required=False, description="Spouse employer NPS per month (₹).", example=0),
+    "spouse_self_nps_pm": fields.Float(required=False, description="Spouse self NPS per month (₹).", example=0),
+    "spouse_current_nps_accum": fields.Float(required=False, description="Spouse current NPS balance (₹).", example=0),
+    "spouse_sa_pm": fields.Float(required=False, description="Spouse monthly SA contribution (₹).", example=0),
+    "spouse_current_sa_accum": fields.Float(required=False, description="Spouse current SA balance (₹).", example=0),
 })
 
 calculate_response_model = ns.model("CalculateResponse", {
@@ -57,6 +67,16 @@ REQUEST_DEFAULTS = {
     "spouse_epf_accum": 0,
     "spouse_annual_ret_reqd": 1000000,
     "household_monthly": 30000,
+    "employer_nps_pm": 0,
+    "self_nps_pm": 0,
+    "current_nps_accum": 0,
+    "sa_pm": 0,
+    "current_sa_accum": 0,
+    "spouse_employer_nps_pm": 0,
+    "spouse_self_nps_pm": 0,
+    "spouse_current_nps_accum": 0,
+    "spouse_sa_pm": 0,
+    "spouse_current_sa_accum": 0,
 }
 
 
@@ -88,12 +108,14 @@ def get_rates():
             "roi_post": config.roi_post,
             "inflation_pre": config.inflation_pre,
             "roi_pre": config.roi_pre,
+            "pf_growth": config.pf_growth if config.pf_growth is not None else 0.05,
         }
     return {
         "inflation_post": 0.06,
         "roi_post": 0.08,
         "inflation_pre": 0.06,
         "roi_pre": 0.12,
+        "pf_growth": 0.05,
     }
 
 
@@ -109,6 +131,16 @@ def validate_non_negative_monetary_fields(data):
         "client_epf_accum",
         "spouse_epf_annual",
         "spouse_epf_accum",
+        "employer_nps_pm",
+        "self_nps_pm",
+        "current_nps_accum",
+        "sa_pm",
+        "current_sa_accum",
+        "spouse_employer_nps_pm",
+        "spouse_self_nps_pm",
+        "spouse_current_nps_accum",
+        "spouse_sa_pm",
+        "spouse_current_sa_accum",
     ):
         value = data.get(field_name)
         if value is not None and value < 0:
@@ -130,10 +162,15 @@ def empty_corpus_calc():
         "expenses_at_retirement_pm": 0.0,
         "corpus": 0.0,
         "pf_fv": 0.0,
+        "nps_fv": 0.0,
+        "sa_fv": 0.0,
+        "total_existing_provision": 0.0,
         "net_corpus": 0.0,
         "monthly_investment": 0.0,
         "lump_sum": 0.0,
         "pf_table": [],
+        "nps_table": [],
+        "sa_table": [],
     }
 
 
@@ -149,7 +186,7 @@ def goals_to_formula_input(goals):
     ]
 
 
-def fmt_pf_table(rows):
+def fmt_accumulation_table(rows):
     return [
         {
             "Year": row["Year"],
@@ -159,6 +196,10 @@ def fmt_pf_table(rows):
         }
         for row in rows
     ]
+
+
+def fmt_pf_table(rows):
+    return fmt_accumulation_table(rows)
 
 
 def fmt_corpus_calc(calc):
@@ -171,10 +212,15 @@ def fmt_corpus_calc(calc):
         "expenses_at_retirement_pm": fmt_response(calc["expenses_at_retirement_pm"]),
         "corpus": fmt_response(calc["corpus"]),
         "pf_corpus": fmt_response(calc["pf_fv"]),
+        "nps_corpus": fmt_response(calc["nps_fv"]),
+        "sa_corpus": fmt_response(calc["sa_fv"]),
+        "total_existing_provision": fmt_response(calc["total_existing_provision"]),
         "net_corpus": fmt_response(calc["net_corpus"]),
         "monthly_sip": fmt_response(calc["monthly_investment"]),
         "lump_sum": fmt_response(calc["lump_sum"]),
         "pf_table": fmt_pf_table(calc["pf_table"]),
+        "nps_table": fmt_accumulation_table(calc.get("nps_table", [])),
+        "sa_table": fmt_accumulation_table(calc.get("sa_table", [])),
     }
 
 
@@ -251,6 +297,12 @@ class CalculateAssessment(Resource):
                 rates["roi_post"],
                 rates["inflation_pre"],
                 rates["roi_pre"],
+                employer_nps_pm=body["employer_nps_pm"],
+                self_nps_pm=body["self_nps_pm"],
+                current_nps_accum=body["current_nps_accum"],
+                sa_pm=body["sa_pm"],
+                current_sa_accum=body["current_sa_accum"],
+                pf_growth=rates["pf_growth"],
             )
 
             has_spouse = bool(personal.spouse_name or personal.spouse_dob)
@@ -265,6 +317,12 @@ class CalculateAssessment(Resource):
                     rates["roi_post"],
                     rates["inflation_pre"],
                     rates["roi_pre"],
+                    employer_nps_pm=body["spouse_employer_nps_pm"],
+                    self_nps_pm=body["spouse_self_nps_pm"],
+                    current_nps_accum=body["spouse_current_nps_accum"],
+                    sa_pm=body["spouse_sa_pm"],
+                    current_sa_accum=body["spouse_current_sa_accum"],
+                    pf_growth=rates["pf_growth"],
                 )
             else:
                 spouse_calc = empty_corpus_calc()
@@ -310,6 +368,12 @@ class CalculateAssessment(Resource):
             spouse_lump_sum=spouse_calc["lump_sum"],
             total_insurance_required=total_insurance,
             total_goals_monthly_sip=total_goals_monthly_sip,
+            client_annual_ret_reqd=body["client_annual_ret_reqd"],
+            spouse_annual_ret_reqd=body["spouse_annual_ret_reqd"] if has_spouse else 0.0,
+            inflation_pre=rates["inflation_pre"],
+            roi_pre=rates["roi_pre"],
+            inflation_post=rates["inflation_post"],
+            roi_post=rates["roi_post"],
             calculated_at=datetime.now(timezone.utc),
         )
         db.session.add(output)

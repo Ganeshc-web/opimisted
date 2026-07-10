@@ -174,3 +174,63 @@ class RateUpdateSchema(Schema):
     roi_post = fields.Float(validate=validate.Range(min=0.01, max=0.30))
     inflation_pre = fields.Float(validate=validate.Range(min=0.01, max=0.30))
     roi_pre = fields.Float(validate=validate.Range(min=0.01, max=0.30))
+    pf_growth = fields.Float(validate=validate.Range(min=0.0, max=0.30))
+
+
+class ApiKeyCreateSchema(Schema):
+    client_name = fields.Str(required=True, validate=validate.Length(min=1, max=120))
+    role = fields.Str(load_default="user", validate=validate.OneOf(["user", "admin"]))
+    expires_at = fields.DateTime(load_default=None)
+
+
+class TestimonialSchema(Schema):
+    client_name = fields.Str(required=True, validate=validate.Length(min=1, max=120))
+    review_message = fields.Str(required=True, validate=validate.Length(min=1, max=5000))
+    avatar_url = fields.Str(load_default=None, validate=validate.Length(max=500))
+    is_visible = fields.Bool(load_default=False)
+    sort_order = fields.Int(load_default=0, validate=validate.Range(min=0, max=9999))
+
+    @validates("client_name")
+    def validate_client_name(self, value, **kwargs):
+        if not value or not value.strip():
+            raise ValidationError("client_name cannot be blank or whitespace.")
+
+    @validates("review_message")
+    def validate_review_message(self, value, **kwargs):
+        if not value or not value.strip():
+            raise ValidationError("review_message cannot be blank or whitespace.")
+
+
+class TestimonialUpdateSchema(Schema):
+    client_name = fields.Str(validate=validate.Length(min=1, max=120))
+    review_message = fields.Str(validate=validate.Length(min=1, max=5000))
+    avatar_url = fields.Str(validate=validate.Length(max=500), allow_none=True)
+    is_visible = fields.Bool()
+    sort_order = fields.Int(validate=validate.Range(min=0, max=9999))
+
+    @validates("client_name")
+    def validate_client_name(self, value, **kwargs):
+        if value is not None and not value.strip():
+            raise ValidationError("client_name cannot be blank or whitespace.")
+
+    @validates("review_message")
+    def validate_review_message(self, value, **kwargs):
+        if value is not None and not value.strip():
+            raise ValidationError("review_message cannot be blank or whitespace.")
+
+
+class GetInTouchSchema(Schema):
+    name = fields.Str(required=True, validate=validate.Length(min=1, max=120))
+    email = fields.Email(required=True)
+    mobile = fields.Str(required=True, validate=validate.Length(min=10, max=15))
+    message = fields.Str(load_default=None)
+
+    @validates("mobile")
+    def validate_mobile(self, value, **kwargs):
+        if not value.isdigit():
+            raise ValidationError("Mobile number must contain only digits.")
+
+    @validates("name")
+    def validate_name(self, value, **kwargs):
+        if not value or not value.strip():
+            raise ValidationError("name cannot be blank or whitespace.")

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Financial Planning Report — {{ client_name }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 22mm 16mm;
+      @bottom-center {
+        content: "Wealth Wisdom Platform  •  Page " counter(page) " of " counter(pages);
+        font-size: 8pt;
+        color: #64748b;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 10pt;
+      color: #1e293b;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%);
+      color: #fff;
+      padding: 22px 24px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+    }
+
+    .header h1 {
+      margin: 0 0 4px;
+      font-size: 22pt;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .header .subtitle {
+      margin: 0;
+      font-size: 10pt;
+      opacity: 0.92;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 14px;
+      font-size: 9pt;
+      opacity: 0.95;
+    }
+
+    .section-title {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #1d4ed8;
+      border-bottom: 2px solid #dbeafe;
+      padding-bottom: 5px;
+      margin: 18px 0 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 10pt;
+      color: #1d4ed8;
+    }
+
+    .field {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 9.5pt;
+    }
+
+    .field:last-child { border-bottom: none; }
+
+    .label { color: #64748b; }
+    .value { font-weight: 600; color: #0f172a; text-align: right; }
+
+    .highlight-box {
+      background: #eff6ff;
+      border-left: 4px solid #2563eb;
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin: 12px 0;
+    }
+
+    .highlight-box .big {
+      font-size: 16pt;
+      font-weight: 700;
+      color: #1d4ed8;
+      margin-top: 4px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 9pt;
+    }
+
+    th {
+      background: #1d4ed8;
+      color: #fff;
+      text-align: left;
+      padding: 8px 10px;
+      font-weight: 600;
+    }
+
+    th:first-child { border-radius: 6px 0 0 0; }
+    th:last-child { border-radius: 0 6px 0 0; }
+
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    tr:nth-child(even) td { background: #f8fafc; }
+
+    .rates {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .rate-pill {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+    }
+
+    .rate-pill .r-label {
+      font-size: 8pt;
+      color: #64748b;
+      display: block;
+    }
+
+    .rate-pill .r-value {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #1d4ed8;
+    }
+
+    .disclaimer {
+      margin-top: 20px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 8pt;
+      color: #94a3b8;
+      text-align: center;
+    }
+
+    .page-break { page-break-before: always; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Financial Planning Report</h1>
+    <p class="subtitle">Wealth Wisdom Platform — Personalised Retirement &amp; Goals Analysis</p>
+    <div class="meta-row">
+      <span><strong>Prepared for:</strong> {{ client_name }}</span>
+      <span><strong>Report date:</strong> {{ report_date }}</span>
+    </div>
+  </div>
+
+  <div class="section-title">Client Profile</div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Primary Client</h3>
+      <div class="field"><span class="label">Name</span><span class="value">{{ client_name }}</span></div>
+      <div class="field"><span class="label">Age</span><span class="value">{{ client_age }}</span></div>
+      <div class="field"><span class="label">Date of Birth</span><span class="value">{{ client_dob }}</span></div>
+      <div class="field"><span class="label">Occupation</span><span class="value">{{ client_occupation }}</span></div>
+      <div class="field"><span class="label">Company</span><span class="value">{{ client_company }}</span></div>
+    </div>
+    <div class="card">
+      <h3>Contact</h3>
+      <div class="field"><span class="label">Mobile</span><span class="value">{{ mobile }}</span></div>
+      <div class="field"><span class="label">Email</span><span class="value">{{ email }}</span></div>
+      <div class="field"><span class="label">Address</span><span class="value">{{ residential_address }}</span></div>
+      <div class="field"><span class="label">Assessment ID</span><span class="value">{{ assessment_id }}</span></div>
+    </div>
+  </div>
+
+  {% if has_spouse %}
+  <div class="section-title">Spouse Details</div>
+  <div class="card">
+    <div class="field"><span class="label">Name</span><span class="value">{{ spouse_name }}</span></div>
+    <div class="field"><span class="label">Age</span><span class="value">{{ spouse_age }}</span></div>
+    <div class="field"><span class="label">Occupation</span><span class="value">{{ spouse_occupation }}</span></div>
+    <div class="field"><span class="label">Company</span><span class="value">{{ spouse_company }}</span></div>
+  </div>
+  {% endif %}
+
+  <div class="section-title">Retirement Summary — Client</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="field"><span class="label">Retirement Age</span><span class="value">{{ client_retirement_age }}</span></div>
+      <div class="field"><span class="label">Years to Retirement</span><span class="value">{{ client_years_to_retirement }}</span></div>
+      <div class="field"><span class="label">Monthly Expense Today</span><span class="value">{{ client_expense_today }}</span></div>
+      <div class="field"><span class="label">Expense at Retirement</span><span class="value">{{ client_expense_at_retirement }}</span></div>
+    </div>
+    <div class="card">
+      <div class="field"><span class="label">Required Corpus</span><span class="value">{{ client_corpus }}</span></div>
+      <div class="field"><span class="label">EPF Corpus at Retirement</span><span class="value">{{ client_pf_corpus }}</span></div>
+      <div class="field"><span class="label">Net Corpus Gap</span><span class="value">{{ client_net_corpus }}</span></div>
+      <div class="field"><span class="label">Monthly SIP</span><span class="value">{{ client_monthly_sip }}</span></div>
+      <div class="field"><span class="label">Lump Sum Today</span><span class="value">{{ client_lump_sum }}</span></div>
+    </div>
+  </div>
+
+  {% if has_spouse %}
+  <div class="section-title">Retirement Summary — Spouse</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="field"><span class="label">Retirement Age</span><span class="value">{{ spouse_retirement_age }}</span></div>
+      <div class="field"><span class="label">Years to Retirement</span><span class="value">{{ spouse_years_to_retirement }}</span></div>
+      <div class="field"><span class="label">Monthly Expense Today</span><span class="value">{{ spouse_expense_today }}</span></div>
+      <div class="field"><span class="label">Expense at Retirement</span><span class="value">{{ spouse_expense_at_retirement }}</span></div>
+    </div>
+    <div class="card">
+      <div class="field"><span class="label">Required Corpus</span><span class="value">{{ spouse_corpus }}</span></div>
+      <div class="field"><span class="label">EPF Corpus at Retirement</span><span class="value">{{ spouse_pf_corpus }}</span></div>
+      <div class="field"><span class="label">Net Corpus Gap</span><span class="value">{{ spouse_net_corpus }}</span></div>
+      <div class="field"><span class="label">Monthly SIP</span><span class="value">{{ spouse_monthly_sip }}</span></div>
+      <div class="field"><span class="label">Lump Sum Today</span><span class="value">{{ spouse_lump_sum }}</span></div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if has_goals %}
+  <div class="section-title">Financial Goals</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Goal</th>
+        <th>Target Year</th>
+        <th>Today's Cost</th>
+        <th>Future Cost</th>
+        <th>Monthly SIP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in goals %}
+      <tr>
+        <td>{{ g.goal_type }}</td>
+        <td>{{ g.target_year }}</td>
+        <td>{{ g.today_cost }}</td>
+        <td>{{ g.future_cost }}</td>
+        <td>{{ g.monthly_sip }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="highlight-box" style="margin-top:10px;">
+    <span class="label">Total Monthly SIP (All Goals)</span>
+    <div class="big">{{ total_goals_monthly_sip }}</div>
+  </div>
+  {% endif %}
+
+  <div class="section-title">Insurance Requirement</div>
+  <div class="highlight-box">
+    <span class="label">Total Insurance Required</span>
+    <div class="big">{{ total_insurance_required }}</div>
+  </div>
+
+  <div class="section-title">Assumptions &amp; Rates</div>
+  <div class="rates">
+    <div class="rate-pill"><span class="r-label">Pre-Ret. Inflation</span><span class="r-value">{{ inflation_pre }}</span></div>
+    <div class="rate-pill"><span class="r-label">Pre-Ret. ROI</span><span class="r-value">{{ roi_pre }}</span></div>
+    <div class="rate-pill"><span class="r-label">Post-Ret. Inflation</span><span class="r-value">{{ inflation_post }}</span></div>
+    <div class="rate-pill"><span class="r-label">Post-Ret. ROI</span><span class="r-value">{{ roi_post }}</span></div>
+  </div>
+  <p style="font-size:8.5pt;color:#64748b;margin-top:8px;">Calculated at: {{ calculated_at }}</p>
+
+  <div class="disclaimer">
+    This report is generated by Wealth Wisdom Platform for informational purposes only and does not constitute financial advice.
+    Please consult a qualified advisor before making investment decisions. &copy; Wealth Wisdom Platform.
+  </div>
+
+</body>
+</html>

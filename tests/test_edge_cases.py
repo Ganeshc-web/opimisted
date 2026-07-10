@@ -93,6 +93,7 @@ def seed_reference_rows():
                 roi_post=0.08,
                 inflation_pre=0.06,
                 roi_pre=0.12,
+                pf_growth=0.05,
                 updated_by="test",
             ),
             EducationProgram(
